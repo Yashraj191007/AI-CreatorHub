@@ -72,4 +72,85 @@ describe('Content API Endpoints', () => {
     expect(res.body.success).toBe(false);
     expect(res.body.error).toBe('Validation Error');
   });
+
+  it('should retrieve a single content item by ID (READ)', async () => {
+    const createRes = await request(app)
+      .post('/api/content')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        title: 'Single Content Item',
+        body: 'Body for single item lookup.',
+        category: 'Social Media',
+        status: 'draft'
+      });
+
+    const contentId = createRes.body.content._id;
+
+    const getRes = await request(app)
+      .get(`/api/content/${contentId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.success).toBe(true);
+    expect(getRes.body.content._id).toBe(contentId);
+    expect(getRes.body.content.title).toBe('Single Content Item');
+  });
+
+  it('should update an existing content item by ID (UPDATE)', async () => {
+    const createRes = await request(app)
+      .post('/api/content')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        title: 'Original Title',
+        body: 'Original Body',
+        category: 'Blog Post',
+        status: 'draft'
+      });
+
+    const contentId = createRes.body.content._id;
+
+    const updateRes = await request(app)
+      .put(`/api/content/${contentId}`)
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        title: 'Updated Title',
+        status: 'published'
+      });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.success).toBe(true);
+    expect(updateRes.body.content.title).toBe('Updated Title');
+    expect(updateRes.body.content.status).toBe('published');
+    expect(updateRes.body.content.publishedAt).toBeDefined();
+  });
+
+  it('should delete a content item by ID and confirm deletion (DELETE)', async () => {
+    const createRes = await request(app)
+      .post('/api/content')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        title: 'Item To Be Deleted',
+        body: 'Body to delete',
+        category: 'Newsletter',
+        status: 'draft'
+      });
+
+    const contentId = createRes.body.content._id;
+
+    const deleteRes = await request(app)
+      .delete(`/api/content/${contentId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.success).toBe(true);
+    expect(deleteRes.body.message).toBe('Content deleted successfully');
+
+    // Confirm deletion with subsequent lookup
+    const lookupRes = await request(app)
+      .get(`/api/content/${contentId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(lookupRes.status).toBe(404);
+    expect(lookupRes.body.success).toBe(false);
+  });
 });
