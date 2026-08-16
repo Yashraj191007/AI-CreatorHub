@@ -1,12 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   demonstrateFunctionHoisting,
   demonstrateVarHoisting,
   demonstrateTDZ,
-  demonstrateEventLoopOrder
+  demonstrateEventLoopOrder,
+  fetchContentWithCallback,
+  fetchContentWithPromise
 } from '../../utils/javascriptConcepts.js';
+import { authorize } from '../../middleware/authMiddleware.js';
 
-describe('JavaScript Runtime Concepts - Milestone 3', () => {
+describe('JavaScript Runtime Concepts - Viva Preparation Suite', () => {
   describe('Hoisting Demonstrations', () => {
     
     it('should demonstrate function declaration hoisting', () => {
@@ -50,4 +53,74 @@ describe('JavaScript Runtime Concepts - Milestone 3', () => {
       ]);
     });
   });
+
+  describe('JavaScript Closures (Production Middleware authorize)', () => {
+    it('should retain access to closed-over roles via lexical scope closure in authorize()', () => {
+      // authorize('ADMIN') returns an inner middleware closure that retains outer 'roles' variable
+      const adminOnlyMiddleware = authorize('ADMIN');
+
+      // 1. Test rejected role access
+      const userReq = { user: { role: 'USER' } } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const nextUser = vi.fn();
+
+      adminOnlyMiddleware(userReq, res, nextUser);
+
+      // The closure retained 'ADMIN', so user role 'USER' is rejected with 403
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: "User role 'USER' is not authorized to perform this action",
+      }));
+      expect(nextUser).not.toHaveBeenCalled();
+
+      // 2. Test allowed role access
+      const adminReq = { user: { role: 'ADMIN' } } as any;
+      const nextAdmin = vi.fn();
+
+      adminOnlyMiddleware(adminReq, res, nextAdmin);
+
+      // The closure retained 'ADMIN', matching adminReq.user.role and invoking next()
+      expect(nextAdmin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Promises vs Callbacks Demonstrations', () => {
+    it('should handle asynchronous flow using traditional error-first callbacks', () => {
+      return new Promise<void>((resolve, reject) => {
+        fetchContentWithCallback('content-101', (err, data) => {
+          try {
+            expect(err).toBeNull();
+            expect(data).toBeDefined();
+            expect(data?.title).toBe('Callback Content Title');
+            
+            fetchContentWithCallback('invalid', (errInvalid, dataInvalid) => {
+              try {
+                expect(errInvalid).toBeInstanceOf(Error);
+                expect(errInvalid?.message).toBe('Invalid content ID in callback');
+                expect(dataInvalid).toBeUndefined();
+                resolve();
+              } catch (e) {
+                reject(e);
+              }
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    });
+
+    it('should handle asynchronous flow using modern ES6 Promises / async await', async () => {
+      // Valid Promise resolution
+      const data = await fetchContentWithPromise('content-101');
+      expect(data.title).toBe('Promise Content Title');
+
+      // Rejected Promise handling
+      await expect(fetchContentWithPromise('invalid')).rejects.toThrow('Invalid content ID in Promise');
+    });
+  });
 });
+

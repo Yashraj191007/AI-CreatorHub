@@ -88,3 +88,35 @@ export const demonstrateEventLoopOrder = (): Promise<string[]> => {
     executionOrder.push('sync-end');
   });
 };
+
+/**
+ * Demonstrates Callback-based asynchronous flow (traditional error-first callback pattern).
+ */
+export const fetchContentWithCallback = (
+  contentId: string,
+  callback: (err: Error | null, data?: { id: string; title: string }) => void
+): void => {
+  setTimeout(() => {
+    if (!contentId || contentId === 'invalid') {
+      callback(new Error('Invalid content ID in callback'));
+    } else {
+      callback(null, { id: contentId, title: 'Callback Content Title' });
+    }
+  }, 10);
+};
+
+/**
+ * Demonstrates Promise-based asynchronous flow (modern ES6 Promise pattern).
+ */
+export const fetchContentWithPromise = (contentId: string): Promise<{ id: string; title: string }> => {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (!contentId || contentId === 'invalid') {
+        reject(new Error('Invalid content ID in Promise'));
+      } else {
+        resolve({ id: contentId, title: 'Promise Content Title' });
+      }
+    }, 10);
+  });
+};
+
