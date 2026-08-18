@@ -6,30 +6,39 @@ generator client {
   provider = "prisma-client-js"
 }
 
+/// User model storing relational account references for subscription billing
+/// PK: id (String)
 model User {
   id            String         @id
   email         String         @unique
-  subscriptions Subscription[]
+  subscriptions Subscription[] /// 1:N relationship with Subscription
 }
 
+/// Plan model storing subscription tiers (e.g. Free, Pro, Enterprise)
+/// PK: id (UUID)
 model Plan {
   id            String         @id @default(uuid())
   name          String         @unique
   price         Decimal        @db.Decimal(10, 2)
-  features      PlanFeature[]
-  subscriptions Subscription[]
+  features      PlanFeature[]  /// 1:N relationship with PlanFeature
+  subscriptions Subscription[] /// 1:N relationship with Subscription
 }
 
+/// PlanFeature model storing features for each plan
+/// PK: id (UUID), FK: planId -> Plan.id
 model PlanFeature {
   id          String @id @default(uuid())
   planId      String
   description String
   
+  /// FK Relation: Plan (1) -> PlanFeature (N) with Cascading Delete
   plan        Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
   
   @@index([planId])
 }
 
+/// Subscription model linking Users to Plans with status and active dates
+/// PK: id (UUID), FK: userId -> User.id, FK: planId -> Plan.id
 model Subscription {
   id        String   @id @default(uuid())
   userId    String
@@ -38,14 +47,18 @@ model Subscription {
   startDate DateTime @default(now())
   endDate   DateTime
   
-  user      User      @relation(fields: [userId], references: [id])
-  plan      Plan      @relation(fields: [planId], references: [id])
-  payments  Payment[]
+  /// FK Relation: User (1) -> Subscription (N) with Cascading Delete
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// FK Relation: Plan (1) -> Subscription (N) with Restrict Delete
+  plan      Plan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments  Payment[] /// 1:N relationship with Payment
   
   @@index([userId])
   @@index([planId])
 }
 
+/// Payment model tracking transaction records for Subscriptions
+/// PK: id (UUID), FK: subscriptionId -> Subscription.id
 model Payment {
   id             String       @id @default(uuid())
   subscriptionId String
@@ -53,7 +66,9 @@ model Payment {
   status         String       // 'success', 'failed', 'pending'
   paymentDate    DateTime     @default(now())
 
-  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  /// FK Relation: Subscription (1) -> Payment (N) with Cascading Delete
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   
   @@index([subscriptionId])
 }
+
