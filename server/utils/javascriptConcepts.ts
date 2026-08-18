@@ -90,6 +90,23 @@ export const demonstrateEventLoopOrder = (): Promise<string[]> => {
 };
 
 /**
+ * Demonstrates JavaScript Closure Semantics.
+ * Creates a rate limiter function that encapsulates state (`callCount` and `maxCalls`)
+ * inside an outer scope, returning an inner function that retains access to outer variables.
+ */
+export const createRateLimiterClosure = (maxCalls: number) => {
+  let callCount = 0; // State preserved across invocations via closure
+
+  return (): { allowed: boolean; remaining: number } => {
+    if (callCount < maxCalls) {
+      callCount++;
+      return { allowed: true, remaining: maxCalls - callCount };
+    }
+    return { allowed: false, remaining: 0 };
+  };
+};
+
+/**
  * Demonstrates Callback-based asynchronous flow (traditional error-first callback pattern).
  */
 export const fetchContentWithCallback = (
@@ -119,4 +136,25 @@ export const fetchContentWithPromise = (contentId: string): Promise<{ id: string
     }, 10);
   });
 };
+
+/**
+ * Demonstrates ES6 Promise Chaining (.then -> .then -> .catch).
+ * Transforms and processes async result sequentially using explicit promise handlers.
+ */
+export const fetchContentWithPromiseChain = (contentId: string): Promise<string> => {
+  return fetchContentWithPromise(contentId)
+    .then((data) => {
+      // First transformation step in promise chain
+      return `${data.title} [Formatted]`;
+    })
+    .then((formattedTitle) => {
+      // Second transformation step in promise chain
+      return formattedTitle.toUpperCase();
+    })
+    .catch((err) => {
+      // Centralized error handler in promise chain
+      throw new Error(`Promise Chain Error: ${err.message}`);
+    });
+};
+
 

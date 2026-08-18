@@ -4,8 +4,10 @@ import {
   demonstrateVarHoisting,
   demonstrateTDZ,
   demonstrateEventLoopOrder,
+  createRateLimiterClosure,
   fetchContentWithCallback,
-  fetchContentWithPromise
+  fetchContentWithPromise,
+  fetchContentWithPromiseChain,
 } from '../../utils/javascriptConcepts.js';
 import { authorize } from '../../middleware/authMiddleware.js';
 
@@ -54,7 +56,7 @@ describe('JavaScript Runtime Concepts - Viva Preparation Suite', () => {
     });
   });
 
-  describe('JavaScript Closures (Production Middleware authorize)', () => {
+  describe('JavaScript Closures (Production Middleware & State Encapsulation)', () => {
     it('should retain access to closed-over roles via lexical scope closure in authorize()', () => {
       // authorize('ADMIN') returns an inner middleware closure that retains outer 'roles' variable
       const adminOnlyMiddleware = authorize('ADMIN');
@@ -84,6 +86,26 @@ describe('JavaScript Runtime Concepts - Viva Preparation Suite', () => {
 
       // The closure retained 'ADMIN', matching adminReq.user.role and invoking next()
       expect(nextAdmin).toHaveBeenCalledTimes(1);
+    });
+
+    it('should encapsulate private state across multiple calls using createRateLimiterClosure()', () => {
+      // Create closure allowing max 2 calls
+      const limiter = createRateLimiterClosure(2);
+
+      // First call (allowed, 1 remaining)
+      const res1 = limiter();
+      expect(res1.allowed).toBe(true);
+      expect(res1.remaining).toBe(1);
+
+      // Second call (allowed, 0 remaining)
+      const res2 = limiter();
+      expect(res2.allowed).toBe(true);
+      expect(res2.remaining).toBe(0);
+
+      // Third call (blocked by closure state check)
+      const res3 = limiter();
+      expect(res3.allowed).toBe(false);
+      expect(res3.remaining).toBe(0);
     });
   });
 
@@ -121,6 +143,16 @@ describe('JavaScript Runtime Concepts - Viva Preparation Suite', () => {
       // Rejected Promise handling
       await expect(fetchContentWithPromise('invalid')).rejects.toThrow('Invalid content ID in Promise');
     });
+
+    it('should handle sequential asynchronous transformations via ES6 Promise Chaining (.then/.catch)', async () => {
+      // Test successful promise chain resolution
+      const result = await fetchContentWithPromiseChain('content-101');
+      expect(result).toBe('PROMISE CONTENT TITLE [FORMATTED]');
+
+      // Test promise chain error handling
+      await expect(fetchContentWithPromiseChain('invalid')).rejects.toThrow('Promise Chain Error: Invalid content ID in Promise');
+    });
   });
 });
+
 

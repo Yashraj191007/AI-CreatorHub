@@ -79,27 +79,38 @@ ai-creatorhub/
 
 ---
 
-## ⚙️ Environment Variables
+## ⚙️ Environment Variables & Secrets Management
 
-Create a `.env` file in the root directory and configure the following variables based on your setup:
+Secrets and sensitive API credentials are strictly excluded from version control via `.gitignore` (`.env*`, `!.env.example`).
+Create a `.env` file in the root directory based on `.env.example`:
 
 ```env
-# Google Gemini API Key (Required for AI generation)
-GEMINI_API_KEY="your_gemini_api_key_here"
+# Application Server Port
+PORT=5000
 
-# Application URL
-APP_URL="http://localhost:3000"
+# Application Base URL
+APP_URL=http://localhost:5000
 
-# Server Port
-PORT=3000
+# MongoDB Connection String (Mongoose document store)
+MONGODB_URI=mongodb://localhost:27017/ai-creatorhub
 
-# MongoDB Connection String (System auto-starts an embedded DB if omitted)
-MONGODB_URI="mongodb://localhost:27017/aicreatorhub"
+# PostgreSQL / Prisma Relational Database URL
+DATABASE_URL=postgresql://user:password@localhost:5432/aicreatorhub_db
 
-# JWT Authentication Config
-JWT_SECRET="your_super_secret_jwt_key"
-JWT_EXPIRES_IN="7d"
+# Authentication Security (JWT Token Signing Secret)
+JWT_SECRET=your_jwt_secret_key_here
+
+# JWT Expiration Period
+JWT_EXPIRES_IN=7d
+
+# Google Gemini AI Service API Key
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
+
+### Security & Secrets Guarantees:
+- `.env` files are ignored in Git (`.gitignore` line 7: `.env*`).
+- `.env.example` provides the safe key blueprint with no real secrets.
+- Secrets are accessed securely in backend modules via `process.env.*` (e.g. `authMiddleware.ts`, `geminiService.ts`, `db.ts`, `prisma.ts`).
 
 ---
 
@@ -117,7 +128,7 @@ JWT_EXPIRES_IN="7d"
    ```
 
 3. **Set up your environment variables:**
-   - Create a `.env` file using the configuration detailed above.
+   - Copy `.env.example` to `.env` and fill in local credentials.
 
 ---
 
@@ -128,37 +139,21 @@ Start the full-stack development server (Frontend and Backend concurrently):
 ```bash
 npm run dev
 ```
-*The app will typically be available at `http://localhost:3000` (or as defined by your PORT).*
 
 ---
 
 ## 🧪 Testing
 
-We use Vitest and Supertest for our automated testing suite. 
+We use Vitest and Supertest for our automated testing suite.
 
 **Run the complete test suite (Unit & Integration):**
 ```bash
-npm test
-```
-
-**Run tests in watch mode (for active development):**
-```bash
-npm run test:watch
+npx vitest run
 ```
 
 ---
 
-## 🔎 TypeScript Checking
-
-To run the TypeScript compiler and check for type errors without emitting built files:
-
-```bash
-npm run lint
-```
-
----
-
-## 🛡️ Security Notes
+## 🛡️ Security & Architecture Notes
 
 - **Prompt Injection Defense**: All AI prompts pass through a strict sanitization layer (`server/utils/promptDefense.ts`) to prevent system instruction overrides.
 - **Authentication**: Passwords are one-way hashed using `bcrypt` before storage. Sessions are managed via HttpOnly/Bearer JSON Web Tokens.
@@ -169,22 +164,44 @@ npm run lint
 
 ## 🌿 Git Workflow
 
-This project follows a standard feature-branch Git workflow:
-- `main`: Contains production-ready, stable code.
-- `feature/*`: Branches used for developing new features (e.g., `feature/testing-setup`).
+AI-CreatorHub follows a structured feature-branch Git workflow:
+
+1. **Branch Naming Standard**:
+   - `main`: Production-ready, stable codebase.
+   - `feature/<feature-name>`: Isolated feature development (e.g., `feature/testing-setup`, `feature/postgresql-prisma`, `feature/js-runtime-concepts`).
+
+2. **Commit Standard**:
+   - Prefix commits with conventional descriptors: `feat:`, `fix:`, `test:`, `docs:`.
+   - Examples in Git history:
+     - `feat: Add comprehensive unit and API integration test suite using Vitest and Supertest`
+     - `feat: Add PostgreSQL, Prisma, billing system (Kalvium Milestone 2)`
+     - `feat: implement JavaScript hoisting and event loop concepts`
+
+3. **Pull Request (PR) & Code Review Flow**:
+   - Create feature branch → Push to GitHub → Open PR targeting `main`.
+   - Automated Vitest test suite validation.
+   - Formal PR merges documented in repository history:
+     - **PR #1**: `Merge pull request #1 from Yashraj191007/feature/testing-setup`
+     - **PR #2**: `Merge pull request #2 from Yashraj191007/feature/postgresql-prisma`
+     - **PR #3**: `Merge pull request #3 from Yashraj191007/feature/js-runtime-concepts`
 
 ---
 
-## 🎓 Kalvium Concepts Implemented
+## 🎓 Viva 4 Concept Evidence Map
 
-This project demonstrates proficiency in several core full-stack concepts:
-- **LLM API Integration**: Direct integration with Gemini API, including function calling and prompt engineering.
-- **Authentication & Security**: Complete implementation of JWT, RBAC, input sanitization, and rate limiting.
-- **Backend Architecture**: RESTful API design using Express middleware and appropriate HTTP status codes.
-- **Frontend Mastery**: Comprehensive use of React Composition, Custom Hooks (`useState`, `useEffect`), and async data fetching.
-- **MongoDB Operations**: Complex CRUD operations, schema design with Mongoose, indexing, and aggregation pipelines.
-- **Engineering Best Practices**: Complete test coverage via Vitest/Supertest, strict TypeScript typing, and secure environment configuration.
+| Concept | Repository File Evidence | Implementation & Technical Detail |
+| :--- | :--- | :--- |
+| **1. Environment Variables & Secrets Management** | `.env.example`, `.gitignore`, `server.ts`, `server/middleware/authMiddleware.ts` | Secrets (`GEMINI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`) are read via `process.env`. `.env*` is excluded in `.gitignore`. Blueprint provided in `.env.example`. |
+| **2. Git Workflow** | Git commit log, `README.md` | Standard feature branch workflow (`feature/*` -> PR -> `main`). Proven by PR #1, PR #2, PR #3 merges in git history and conventional commit standard. |
+| **3. JavaScript — Async/Await** | `server/controllers/aiController.ts`, `server/services/geminiService.ts` | `handleGenerateCaptions` uses `async/await` with `try...catch` to await asynchronous Gemini API calls and asynchronous Mongoose database writes sequentially. |
+| **4. JavaScript — Closures** | `server/middleware/authMiddleware.ts`, `server/utils/javascriptConcepts.ts` | `authorize(...roles)` returns an inner middleware closure encapsulating outer scope `roles`. `createRateLimiterClosure` encapsulates `callCount` across function invocations. |
+| **5. JavaScript — Event Loop** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | `demonstrateEventLoopOrder()` proves execution order: Call Stack (Synchronous) -> Microtask Queue (Promises) -> Macrotask Queue (`setTimeout`). Tested in Vitest. |
+| **6. JavaScript — Hoisting** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | Demonstrates Function Declaration hoisting, `var` hoisting (initialized to `undefined`), and Temporal Dead Zone (TDZ) for `let`/`const` (throwing `ReferenceError`). |
+| **7. JavaScript — Promises vs Callbacks** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | Compares traditional error-first callbacks (`fetchContentWithCallback`), ES6 Promises (`fetchContentWithPromise`), and Promise Chaining (`fetchContentWithPromiseChain` `.then/.catch`). |
+| **8. CRUD Operations (Mongo)** | `server/models/User.ts`, `server/models/Content.ts`, `server/tests/unit/userModel.test.ts` | Explicit Mongoose unit tests validating MongoDB CREATE (`User.create`), READ (`findById`/`findOne`), UPDATE (`findByIdAndUpdate`), and DELETE (`findByIdAndDelete`) with before/after state verification. |
+| **9. Relational Schema Design (PK/FK)** | `prisma/schema.prisma`, `server/services/billingService.ts`, `server/tests/api/billing.test.ts` | PostgreSQL normalized schema (3NF) in Prisma. Explicit PK (`@id`), FK (`@relation(fields: [...], references: [...])`), and `onDelete` cascade/restrict rules across `User`, `Plan`, `PlanFeature`, `Subscription`, `Payment`. |
 
 ---
 
 **Author**: Yashraj Jagtap
+
