@@ -174,7 +174,7 @@ AI-CreatorHub follows a structured feature-branch Git workflow:
    - Prefix commits with conventional descriptors: `feat:`, `fix:`, `test:`, `docs:`.
    - Examples in Git history:
      - `feat: Add comprehensive unit and API integration test suite using Vitest and Supertest`
-     - `feat: Add PostgreSQL, Prisma, billing system (Kalvium Milestone 2)`
+     - `feat: Add PostgreSQL, Prisma, billing system`
      - `feat: implement JavaScript hoisting and event loop concepts`
 
 3. **Pull Request (PR) & Code Review Flow**:
@@ -184,22 +184,6 @@ AI-CreatorHub follows a structured feature-branch Git workflow:
      - **PR #1**: `Merge pull request #1 from Yashraj191007/feature/testing-setup`
      - **PR #2**: `Merge pull request #2 from Yashraj191007/feature/postgresql-prisma`
      - **PR #3**: `Merge pull request #3 from Yashraj191007/feature/js-runtime-concepts`
-
----
-
-## 🎓 Viva 4 Concept Evidence Map
-
-| Concept | Repository File Evidence | Implementation & Technical Detail |
-| :--- | :--- | :--- |
-| **1. Environment Variables & Secrets Management** | `.env.example`, `.gitignore`, `server.ts`, `server/middleware/authMiddleware.ts` | Secrets (`GEMINI_API_KEY`, `JWT_SECRET`, `DATABASE_URL`) are read via `process.env`. `.env*` is excluded in `.gitignore`. Blueprint provided in `.env.example`. |
-| **2. Git Workflow** | Git commit log, `README.md` | Standard feature branch workflow (`feature/*` -> PR -> `main`). Proven by PR #1, PR #2, PR #3 merges in git history and conventional commit standard. |
-| **3. JavaScript — Async/Await** | `server/controllers/aiController.ts`, `server/services/geminiService.ts` | `handleGenerateCaptions` uses `async/await` with `try...catch` to await asynchronous Gemini API calls and asynchronous Mongoose database writes sequentially. |
-| **4. JavaScript — Closures** | `server/middleware/authMiddleware.ts`, `server/utils/javascriptConcepts.ts` | `authorize(...roles)` returns an inner middleware closure encapsulating outer scope `roles`. `createRateLimiterClosure` encapsulates `callCount` across function invocations. |
-| **5. JavaScript — Event Loop** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | `demonstrateEventLoopOrder()` proves execution order: Call Stack (Synchronous) -> Microtask Queue (Promises) -> Macrotask Queue (`setTimeout`). Tested in Vitest. |
-| **6. JavaScript — Hoisting** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | Demonstrates Function Declaration hoisting, `var` hoisting (initialized to `undefined`), and Temporal Dead Zone (TDZ) for `let`/`const` (throwing `ReferenceError`). |
-| **7. JavaScript — Promises vs Callbacks** | `server/utils/javascriptConcepts.ts`, `server/tests/unit/javascriptConcepts.test.ts` | Compares traditional error-first callbacks (`fetchContentWithCallback`), ES6 Promises (`fetchContentWithPromise`), and Promise Chaining (`fetchContentWithPromiseChain` `.then/.catch`). |
-| **8. CRUD Operations (Mongo)** | `server/models/User.ts`, `server/models/Content.ts`, `server/tests/unit/userModel.test.ts` | Explicit Mongoose unit tests validating MongoDB CREATE (`User.create`), READ (`findById`/`findOne`), UPDATE (`findByIdAndUpdate`), and DELETE (`findByIdAndDelete`) with before/after state verification. |
-| **9. Relational Schema Design (PK/FK)** | `prisma/schema.prisma`, `server/services/billingService.ts`, `server/tests/api/billing.test.ts` | PostgreSQL normalized schema (3NF) in Prisma. Explicit PK (`@id`), FK (`@relation(fields: [...], references: [...])`), and `onDelete` cascade/restrict rules across `User`, `Plan`, `PlanFeature`, `Subscription`, `Payment`. |
 
 ---
 
