@@ -170,21 +170,31 @@ AI-CreatorHub follows a structured feature-branch Git workflow:
    - `main`: Production-ready, stable codebase.
    - `feature/<feature-name>`: Isolated feature development (e.g., `feature/testing-setup`, `feature/postgresql-prisma`, `feature/js-runtime-concepts`).
 
-2. **Commit Standard**:
+2. **Development & Commit Standard**:
+   - Features are developed and committed on their respective feature branches.
    - Prefix commits with conventional descriptors: `feat:`, `fix:`, `test:`, `docs:`.
    - Examples in Git history:
      - `feat: Add comprehensive unit and API integration test suite using Vitest and Supertest`
      - `feat: Add PostgreSQL, Prisma, billing system`
      - `feat: implement JavaScript hoisting and event loop concepts`
 
-3. **Pull Request (PR) & Code Review Flow**:
-   - Create feature branch → Push to GitHub → Open PR targeting `main`.
-   - Automated Vitest test suite validation.
-   - Formal PR merges documented in repository history:
+3. **Testing Before Merge**:
+   - Before merging a feature branch, the automated test suite is executed using:
+     ```bash
+     npx vitest run
+     ```
+   - The suite includes unit and API integration tests using Vitest and Supertest.
+   - Changes are merged only after verifying that the relevant tests pass.
+
+4. **Pull Request & Merge Flow**:
+   - Create feature branch → Implement changes → Run automated tests → Push branch to GitHub → Open PR targeting `main` → Review changes → Merge PR.
+   - Formal PR merges are preserved in repository history, including:
      - **PR #1**: `Merge pull request #1 from Yashraj191007/feature/testing-setup`
      - **PR #2**: `Merge pull request #2 from Yashraj191007/feature/postgresql-prisma`
      - **PR #3**: `Merge pull request #3 from Yashraj191007/feature/js-runtime-concepts`
+     - **PR #8**: `Merge pull request #8 from Yashraj191007/feature/project-documentation`
 
+This workflow keeps `main` stable while providing traceable feature development, automated verification, code review, and documented integration history.
 ---
 
 **Author**: Yashraj Jagtap
