@@ -144,5 +144,23 @@ describe('Mongoose User Model - Explicit MongoDB CRUD Operations', () => {
     const afterDelete = await User.findById(created._id);
     expect(afterDelete).toBeNull();
   });
+
+  it('should handle expected Mongoose validation error using try/catch on invalid CREATE operation', async () => {
+    // Intentionally omit required 'email' field to trigger schema validation failure during async CRUD operation
+    const invalidUserData = {
+      name: 'Invalid User No Email',
+      password: 'password123',
+    };
+
+    try {
+      await User.create(invalidUserData as any);
+      expect.fail('Expected User.create() to throw a Mongoose ValidationError due to missing required email');
+    } catch (error: any) {
+      expect(error).toBeDefined();
+      expect(error.name).toBe('ValidationError');
+      expect(error.errors).toHaveProperty('email');
+      expect(error.errors.email.message).toBe('Email is required');
+    }
+  });
 });
 
