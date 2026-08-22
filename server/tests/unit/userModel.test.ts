@@ -145,6 +145,37 @@ describe('Mongoose User Model - Explicit MongoDB CRUD Operations', () => {
     expect(afterDelete).toBeNull();
   });
 
+  it('should execute independent asynchronous database read operations concurrently using Promise.all', async () => {
+    // 1. Setup: Create two independent user documents in MongoDB
+    const userA = await User.create({
+      name: 'Concurrent User A',
+      email: 'usera@example.com',
+      password: 'password123',
+    });
+
+    const userB = await User.create({
+      name: 'Concurrent User B',
+      email: 'userb@example.com',
+      password: 'password123',
+    });
+
+    // 2. Perform independent asynchronous READ operations concurrently using Promise.all.
+    // Because querying userA by ID and userB by email are completely independent DB operations,
+    // disptaching them concurrently via Promise.all avoids unnecessary sequential waterfall delays.
+    const [foundA, foundB] = await Promise.all([
+      User.findById(userA._id),
+      User.findOne({ email: 'userb@example.com' }),
+    ]);
+
+    // 3. Assert both independent async operations resolved concurrently and correctly
+    expect(foundA).not.toBeNull();
+    expect(foundA?.name).toBe('Concurrent User A');
+
+    expect(foundB).not.toBeNull();
+    expect(foundB?._id.toString()).toBe(userB._id.toString());
+    expect(foundB?.email).toBe('userb@example.com');
+  });
+
   it('should handle expected Mongoose validation error using try/catch on invalid CREATE operation', async () => {
     // Intentionally omit required 'email' field to trigger schema validation failure during async CRUD operation
     const invalidUserData = {

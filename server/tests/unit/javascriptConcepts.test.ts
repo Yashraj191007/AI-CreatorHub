@@ -39,20 +39,25 @@ describe('JavaScript Runtime Concepts - Viva Preparation Suite', () => {
 
   describe('Event Loop Demonstrations', () => {
     
-    it('should demonstrate event loop execution order (Sync -> Microtask -> Macrotask)', async () => {
+    it('should demonstrate event loop execution order (Sync -> Microtask -> Macrotask) and state consistency', async () => {
       // Awaits the promise which resolves when the setTimeout macrotask runs
-      const executionOrder = await demonstrateEventLoopOrder();
+      const { executionOrder, stateObservedByTimer } = await demonstrateEventLoopOrder();
       
       // Verification of the Event Loop order:
-      // 1. Synchronous code executes immediately
-      // 2. Promise callbacks (Microtasks) execute after sync code finishes
-      // 3. setTimeout callbacks (Macrotasks) execute in a future tick of the event loop
+      // 1. Synchronous code executes immediately on the Call Stack ('sync-start', 'sync-end')
+      // 2. Promise callbacks (Microtasks) execute immediately after sync code finishes ('promise-microtask')
+      // 3. setTimeout callbacks (Macrotasks) execute in a future tick of the event loop ('timer-macrotask')
       expect(executionOrder).toEqual([
         'sync-start',
         'sync-end',
         'promise-microtask',
         'timer-macrotask'
       ]);
+
+      // Verification of why ordering matters for application behavior:
+      // Because microtasks are processed before the timer macrotask, the state update performed
+      // inside the Promise microtask ('updated-by-microtask') is visible when the timer runs.
+      expect(stateObservedByTimer).toBe('updated-by-microtask');
     });
   });
 

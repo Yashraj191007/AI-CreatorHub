@@ -56,35 +56,49 @@ export const demonstrateTDZ = () => {
   }
 };
 
+export interface EventLoopResult {
+  executionOrder: string[];
+  stateObservedByTimer: string;
+}
+
 /**
- * Demonstrates the JavaScript Event Loop execution order.
- * Returns a promise that resolves to an array of execution steps.
+ * Demonstrates the JavaScript Event Loop execution order and state consistency.
+ * Returns a promise that resolves to an object containing execution steps and state observed by macrotasks.
  * 
  * Order of execution demonstrated:
- * 1. Synchronous operations (executed immediately on the call stack)
- * 2. Microtasks (Promise callbacks, executed after current macro task finishes but before next event loop tick)
+ * 1. Synchronous operations (executed immediately on the main thread Call Stack)
+ * 2. Microtasks (Promise callbacks, executed after current Call Stack empties, before next event loop tick)
  * 3. Macrotasks (setTimeout callbacks, executed in a subsequent event loop tick)
+ * 
+ * Why ordering matters for application behavior:
+ * Microtask queue priority ensures Promise state updates (e.g. async state hydration/resolution)
+ * complete before scheduled Macrotasks (timers or I/O callbacks) inspect or act upon application state.
  */
-export const demonstrateEventLoopOrder = (): Promise<string[]> => {
+export const demonstrateEventLoopOrder = (): Promise<EventLoopResult> => {
   return new Promise((resolve) => {
     const executionOrder: string[] = [];
+    const state = { value: 'initial-sync-state' };
 
-    // 1. Synchronous Code
+    // 1. Synchronous Code (Call Stack)
     executionOrder.push('sync-start');
 
-    // 3. Macrotask (Timer)
+    // 3. Macrotask (Timer Queue)
     setTimeout(() => {
       executionOrder.push('timer-macrotask');
-      // Resolve after the macrotask executes to finish the demonstration
-      resolve(executionOrder);
+      // Resolve after the macrotask executes, reporting the state observed by the timer
+      resolve({
+        executionOrder,
+        stateObservedByTimer: state.value,
+      });
     }, 0);
 
-    // 2. Microtask (Promise)
+    // 2. Microtask (Promise Queue)
     Promise.resolve().then(() => {
+      state.value = 'updated-by-microtask';
       executionOrder.push('promise-microtask');
     });
 
-    // 1. Synchronous Code
+    // 1. Synchronous Code (Call Stack)
     executionOrder.push('sync-end');
   });
 };
