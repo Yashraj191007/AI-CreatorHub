@@ -6,13 +6,21 @@ AI CreatorHub is a full-stack, AI-powered content management platform designed f
 
 ## 🌟 Features
 
-- **AI Content Generation**: Leverages Google Gemini API for intelligent text generation, assisted writing, and creative ideation.
-- **Robust Security & Prompt Defense**: Built-in mechanisms to detect and block prompt injection attempts, ensuring safe interactions with the LLM.
+- **LLM API Integration**: Integrates the Google Gemini API (`@google/genai` SDK) for all AI generation tasks. Calls `ai.models.generateContent()` and `ai.models.generateContentStream()` with structured prompts, function declarations, and response schemas.
+- **Function Calling / Tool Use**: Implements `FunctionDeclaration[]` in `server/services/geminiTools.ts` for 4 tools (`getUserContentStats`, `searchUserContent`, `getRecentContent`, `getContentById`). `runAssistantToolChat()` passes `tools: [{ functionDeclarations }]` to Gemini, reads `response.functionCalls`, executes via `executeToolCall()`, and feeds results back for final synthesis.
+- **Structured Outputs**: The Multi-Step Agent planner uses the official Gemini structured output API — `config: { responseMimeType: 'application/json', responseSchema: PLANNER_OUTPUT_SCHEMA }` — enforcing a typed JSON schema (`targetAudience`, `keyAngles`, `suggestedSections`, `retrievalKeywords`) at the API level, not just via prompt instructions. Implemented in `server/services/multiStepAgentService.ts`.
+- **RAG — Embeddings & Vector Retrieval**: `server/services/ragService.ts` implements a full RAG pipeline: text chunking (`chunkText`), vector embedding via `text-embedding-004` (`generateEmbedding`), MongoDB storage of embedding vectors (`KnowledgeDoc` model), cosine similarity ranking (`cosineSimilarity`), top-K retrieval (`retrieveRelevantChunks`), and Gemini augmented generation grounded on retrieved context (`generateRAGAugmentedResponse`). Routes: `POST /api/ai/rag/index` and `POST /api/ai/rag`.
+- **Multi-Step Agent**: `server/services/multiStepAgentService.ts` implements a 4-stage orchestrated pipeline: Stage 1 (Planner — structured JSON strategy), Stage 2 (Retriever — RAG vector lookup using planner keywords), Stage 3 (Generator — multi-section draft using plan + context), Stage 4 (Refiner — prompt defense, readability scoring, hashtag extraction). Route: `POST /api/ai/multi-step-agent`.
+- **Streaming Responses**: `generateContentStream()` in `server/services/geminiService.ts` uses `ai.models.generateContentStream()` with an async iterator to yield token chunks progressively. `handleStreamContent()` (`POST /api/ai/stream`) configures Express SSE headers (`Content-Type: text/event-stream`) and writes `data: { chunk }` events incrementally to the HTTP response.
+- **Token & Cost Monitoring**: `server/utils/costMonitor.ts` captures Gemini `usageMetadata` (`promptTokenCount`, `candidatesTokenCount`) when available, with a character-ratio fallback. Computes `estimatedCostUSD` per model pricing. Every AI request persists `promptTokens`, `candidateTokens`, `totalTokens`, and `estimatedCostUSD` to `AIRequest` (MongoDB). Aggregate statistics available at `GET /api/ai/usage-stats`.
+- **LLM Evaluation Suite**: `server/evals/evalDataset.ts` contains a structured benchmark dataset across 5 categories (`security_injection`, `caption_constraints`, `multi_step_agent`, `rag_relevance`, `json_schema`). `server/evals/evalRunner.ts` executes test cases against live application pipeline components and produces per-category and overall score reports.
+- **AI Content Generation**: Leverages Google Gemini API for caption generation, content drafting, rewriting, summarization, and hashtag extraction.
+- **Robust Security & Prompt Defense**: Built-in regex-based detection blocking prompt injection attempts, delimiter escapes, jailbreak patterns, and unconstrained persona attempts (`promptDefense.ts`).
 - **Secure Authentication**: End-to-end JWT-based authentication with secure password hashing (bcrypt).
 - **Role-Based Access Control (RBAC)**: Distinct permissions for standard users and administrators, including a secure Admin portal.
 - **Content Management**: Create, read, update, and delete (CRUD) operations for creative content with seamless MongoDB integration.
 - **Responsive UI**: A modern, mobile-friendly interface built with React, Tailwind CSS, and Framer Motion.
-- **Comprehensive Testing**: Automated unit and API integration testing suite ensuring platform stability.
+- **Comprehensive Testing**: Automated unit and API integration testing suite ensuring platform stability (67 tests across 14 files).
 
 ---
 

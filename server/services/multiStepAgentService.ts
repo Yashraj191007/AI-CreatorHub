@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Schema, Type } from '@google/genai';
 import { sanitizeAndGuardPrompt, buildSystemInstructions } from '../utils/promptDefense.js';
 import { retrieveRelevantChunks, RetrievedChunk } from './ragService.js';
 import { calculateTokenUsageAndCost, UsageCalculationResult } from '../utils/costMonitor.js';
@@ -58,7 +58,40 @@ export interface MultiStepAgentExecutionResult {
 }
 
 /**
+ * JSON Schema for the planner output — used with Gemini structured output.
+ * responseMimeType: 'application/json' + responseSchema forces the model to emit
+ * a valid JSON object matching this schema, rather than freeform text.
+ */
+const PLANNER_OUTPUT_SCHEMA: Schema = {
+  type: Type.OBJECT,
+  description: 'Content strategy plan produced by the multi-step agent planner stage.',
+  properties: {
+    targetAudience: {
+      type: Type.STRING,
+      description: 'Primary target audience for the content.',
+    },
+    keyAngles: {
+      type: Type.ARRAY,
+      description: 'Three distinct angles or hooks for the content.',
+      items: { type: Type.STRING },
+    },
+    suggestedSections: {
+      type: Type.ARRAY,
+      description: 'Three section headers structuring the content draft.',
+      items: { type: Type.STRING },
+    },
+    retrievalKeywords: {
+      type: Type.STRING,
+      description: 'Space-separated keywords used to query the RAG knowledge store.',
+    },
+  },
+  required: ['targetAudience', 'keyAngles', 'suggestedSections', 'retrievalKeywords'],
+};
+
+/**
  * Stage 1: Strategy & Outline Planner
+ * Uses Gemini structured output (responseMimeType + responseSchema) to enforce
+ * a JSON response schema directly at the API level — not just prompt-instructed parsing.
  */
 export async function executePlannerStage(
   topic: string,
@@ -68,9 +101,18 @@ export async function executePlannerStage(
   const start = Date.now();
   const ai = getAIClient();
 
-  const prompt = `Formulate a content strategy plan for platform '${platform}' with tone '${tone}'. Topic: "${topic}".
-Return ONLY a valid JSON object with fields: "targetAudience" (string), "keyAngles" (array of 3 strings), "suggestedSections" (array of 3 section headers), "retrievalKeywords" (string of space-separated keywords).`;
+  const prompt = `You are a content strategy planner. Create a content strategy plan for the following:
+Platform: ${platform}
+Tone: ${tone}
+Topic: "${topic}"
 
+Produce a strategy plan with:
+- targetAudience: who the content is for
+- keyAngles: exactly 3 distinct content angles or hooks
+- suggestedSections: exactly 3 section headers for the draft
+- retrievalKeywords: relevant space-separated keywords for knowledge retrieval`;
+
+  // Fallback plan used when API key is unavailable (offline/test mode)
   let planOutput: StrategyPlanOutput = {
     targetAudience: `Content creators and followers on ${platform}`,
     keyAngles: [`Hook audience on ${topic}`, `Key insights regarding ${topic}`, `Call to action`],
@@ -80,23 +122,33 @@ Return ONLY a valid JSON object with fields: "targetAudience" (string), "keyAngl
 
   if (process.env.GEMINI_API_KEY) {
     try {
+      // Use official Gemini structured output: responseMimeType + responseSchema
+      // This enforces the JSON schema at the API level — not just via prompt instructions.
       const response = await ai.models.generateContent({
         model: 'gemini-3.6-flash',
         contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: PLANNER_OUTPUT_SCHEMA,
+          temperature: 0.4,
+        },
       });
-      const text = response.text || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        planOutput = {
-          targetAudience: parsed.targetAudience || planOutput.targetAudience,
-          keyAngles: Array.isArray(parsed.keyAngles) ? parsed.keyAngles : planOutput.keyAngles,
-          suggestedSections: Array.isArray(parsed.suggestedSections) ? parsed.suggestedSections : planOutput.suggestedSections,
-          retrievalKeywords: parsed.retrievalKeywords || planOutput.retrievalKeywords,
-        };
-      }
+
+      // With structured output, response.text is guaranteed to be valid JSON matching PLANNER_OUTPUT_SCHEMA
+      const parsed = JSON.parse(response.text || '{}') as Partial<StrategyPlanOutput>;
+      planOutput = {
+        targetAudience: parsed.targetAudience || planOutput.targetAudience,
+        keyAngles: Array.isArray(parsed.keyAngles) && parsed.keyAngles.length > 0
+          ? parsed.keyAngles
+          : planOutput.keyAngles,
+        suggestedSections: Array.isArray(parsed.suggestedSections) && parsed.suggestedSections.length > 0
+          ? parsed.suggestedSections
+          : planOutput.suggestedSections,
+        retrievalKeywords: parsed.retrievalKeywords || planOutput.retrievalKeywords,
+      };
     } catch (e) {
-      // Keep fallback structured plan
+      // Keep fallback structured plan on API error
+      console.warn('Planner structured output API call failed, using fallback plan:', (e as Error).message);
     }
   }
 
@@ -105,6 +157,7 @@ Return ONLY a valid JSON object with fields: "targetAudience" (string), "keyAngl
     durationMs: Date.now() - start,
   };
 }
+
 
 /**
  * Stage 2: Knowledge & Context Retrieval

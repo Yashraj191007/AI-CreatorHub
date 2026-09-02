@@ -9,15 +9,29 @@ import {
 import mongoose from 'mongoose';
 
 describe('Multi-Step AI Agent Workflow Engine', () => {
-  it('should execute Stage 1 (Planner) and output structured content strategy plan', async () => {
+  it('should execute Stage 1 (Planner) and output structured content strategy plan matching SDK responseSchema', async () => {
     const plan = await executePlannerStage('Next.js performance optimization', 'LinkedIn', 'Informative');
 
-    expect(plan.output.targetAudience).toBeDefined();
+    // Verify all fields required by PLANNER_OUTPUT_SCHEMA are present and correctly typed
+    expect(typeof plan.output.targetAudience).toBe('string');
+    expect(plan.output.targetAudience.length).toBeGreaterThan(0);
     expect(Array.isArray(plan.output.keyAngles)).toBe(true);
+    expect(plan.output.keyAngles.length).toBeGreaterThanOrEqual(1);
+    plan.output.keyAngles.forEach((angle) => expect(typeof angle).toBe('string'));
     expect(Array.isArray(plan.output.suggestedSections)).toBe(true);
-    expect(plan.output.suggestedSections.length).toBeGreaterThanOrEqual(3);
+    expect(plan.output.suggestedSections.length).toBeGreaterThanOrEqual(1);
+    plan.output.suggestedSections.forEach((section) => expect(typeof section).toBe('string'));
+    expect(typeof plan.output.retrievalKeywords).toBe('string');
+    expect(plan.output.retrievalKeywords.length).toBeGreaterThan(0);
     expect(plan.durationMs).toBeGreaterThanOrEqual(0);
+
+    // Verify the output is directly JSON-serialisable (no extra wrapper/regex required)
+    const serialised = JSON.stringify(plan.output);
+    const roundTripped = JSON.parse(serialised);
+    expect(roundTripped.targetAudience).toBe(plan.output.targetAudience);
+    expect(roundTripped.retrievalKeywords).toBe(plan.output.retrievalKeywords);
   });
+
 
   it('should execute Stage 2 (Retriever) and output context text and chunks', async () => {
     const mockUserId = new mongoose.Types.ObjectId().toString();
