@@ -15,11 +15,15 @@ import {
 } from '../controllers/aiController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { aiLimiter } from '../middleware/rateLimiter.js';
+import { inputSanitization } from '../middleware/inputSanitization.js';
 
 const router = Router();
 
 router.use(protect);
 router.use(aiLimiter);
+
+// Apply input sanitization globally to all AI routes since they process user text
+router.use(inputSanitization);
 
 router.post('/generate-captions', handleGenerateCaptions);
 router.post('/generate-content', handleGenerateContent);

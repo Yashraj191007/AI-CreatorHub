@@ -189,6 +189,11 @@ Referenced in `prisma/schema.prisma`:
 - `runLLMEvalSuite(dataset)` iterates over cases, executes live application pipeline components (`sanitizeAndGuardPrompt`, `executePlannerStage`, `retrieveRelevantChunks`), asserts criteria, and returns `EvalReport { totalCases, passedCases, overallScorePercentage, categoryScores }`.
 - Benchmark suite test in `server/tests/evals/llmEval.test.ts` verifies ≥80% overall pass rate.
 
+## 17. Input Sanitization & Prompt Injection Defense
+- **Input Sanitization**: Implemented as an Express middleware in `server/middleware/inputSanitization.ts`. It globally intercepts requests to `aiRoutes` and `contentRoutes`. It recursively parses request bodies to neutralize Cross-Site Scripting (XSS) vectors (e.g., `<script>`, `javascript:`, inline event handlers) from user-generated text while ignoring sensitive authentication fields like passwords. This protects the application structure and other users.
+- **Prompt Injection Defense**: Implemented in `server/utils/promptDefense.ts`. Specifically targets LLM vulnerabilities by scanning for bypass patterns (e.g., "ignore previous instructions", "jailbroken") and wrapping user inputs in strictly defined `<user_content>` delimiters with escaping. This protects the LLM from manipulation.
+- **Validation**: `Zod` schemas in `server/validators/` ensure data types, structure, and length limits are respected before reaching business logic.
+
 ## 11. Testing Structure
 - Uses `vitest` for the test runner and assertions.
 - Uses `supertest` in `server/tests/api/` for simulating HTTP requests.
