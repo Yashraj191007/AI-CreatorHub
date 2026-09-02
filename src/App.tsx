@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
+import { io, Socket } from 'socket.io-client';
 
 // Pages
 import { LandingPage } from './pages/LandingPage';
@@ -17,8 +18,37 @@ import { AdminPage } from './pages/AdminPage';
 
 // Protected Layout Route Guard
 const ProtectedLayout: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, token } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [notification, setNotification] = useState<{ title: string; message: string; type: string } | null>(null);
+
+  React.useEffect(() => {
+    let socket: Socket | null = null;
+    if (token) {
+      // Connect to the backend with JWT for authentication
+      const apiUrl = (import.meta as any).env?.VITE_API_URL || window.location.origin;
+      socket = io(apiUrl, {
+        auth: { token },
+      });
+
+      socket.on('ai_notification', (data) => {
+        setNotification(data);
+        // Auto-hide toast after 5 seconds
+        setTimeout(() => setNotification(null), 5000);
+      });
+
+      socket.on('connect_error', (err) => {
+        console.error('WebSocket connection error:', err.message);
+      });
+    }
+
+    return () => {
+      // Cleanup on unmount or token change
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [token]);
 
   if (loading) {
     return (
@@ -38,6 +68,13 @@ const ProtectedLayout: React.FC = () => {
         isSidebarOpen={isSidebarOpen}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
       />
+
+      {notification && (
+        <div className="fixed top-20 right-4 z-50 bg-emerald-900 border border-emerald-500 text-emerald-100 px-6 py-4 rounded shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+          <h4 className="font-bold">{notification.title}</h4>
+          <p className="text-sm opacity-90">{notification.message}</p>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 gap-6">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />

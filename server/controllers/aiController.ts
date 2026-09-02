@@ -13,6 +13,7 @@ import {
 import { AgentOrchestrator } from '../services/multiStepAgentService.js';
 import { generateRAGAugmentedResponse, indexKnowledgeDocument } from '../services/ragService.js';
 import { aggregateUsageStats } from '../utils/costMonitor.js';
+import { emitToUser } from '../services/websocketService.js';
 
 import {
   aiCaptionSchema,
@@ -50,6 +51,14 @@ export async function handleGenerateCaptions(req: AuthRequest, res: Response, ne
       isSuspicious: result.isSuspicious,
       warning: result.isSuspicious ? 'Prompt injection guard detected potential instruction manipulation.' : undefined,
     });
+
+    if (userId) {
+      emitToUser(userId.toString(), 'ai_notification', {
+        title: 'Captions Generated',
+        message: 'Your AI captions have been successfully generated.',
+        type: 'success'
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -82,6 +91,14 @@ export async function handleGenerateContent(req: AuthRequest, res: Response, nex
       draft: result.draft,
       isSuspicious: result.isSuspicious,
     });
+
+    if (userId) {
+      emitToUser(userId.toString(), 'ai_notification', {
+        title: 'Content Generated',
+        message: `Your AI draft for "${topic}" is ready!`,
+        type: 'success'
+      });
+    }
   } catch (error) {
     next(error);
   }
