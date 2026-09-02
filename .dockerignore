@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+coverage/
+.git/
+.env*
+!.env.example
+.DS_Store
+*.log
+.agents/
+.claude/
+.windsurf/
+uploads/
