@@ -9,6 +9,7 @@
     "start": "node dist/server.cjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval": "vitest run server/tests/evals",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

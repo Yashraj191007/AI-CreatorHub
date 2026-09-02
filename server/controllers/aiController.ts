@@ -10,7 +10,7 @@ import {
   runAssistantToolChat,
   generateContentStream,
 } from '../services/geminiService.js';
-import { runMultiStepAgent } from '../services/multiStepAgentService.js';
+import { AgentOrchestrator } from '../services/multiStepAgentService.js';
 import { generateRAGAugmentedResponse, indexKnowledgeDocument } from '../services/ragService.js';
 import { aggregateUsageStats } from '../utils/costMonitor.js';
 
@@ -219,7 +219,8 @@ export async function handleMultiStepAgent(req: AuthRequest, res: Response, next
     }
     const userId = req.user?._id?.toString() || '';
 
-    const agentResult = await runMultiStepAgent(userId, topic, platform, tone);
+    const orchestrator = new AgentOrchestrator();
+    const agentResult = await orchestrator.execute(userId, topic, platform, tone);
 
     await AIRequest.create({
       userId: req.user?._id,

@@ -1,5 +1,6 @@
 import { GoogleGenAI, Schema, Type } from '@google/genai';
-import { sanitizeAndGuardPrompt, buildSystemInstructions } from '../utils/promptDefense.js';
+import { sanitizeAndGuardPrompt } from '../utils/promptDefense.js';
+import { getPlannerPromptTemplate, getGeneratorSystemPrompt } from '../utils/promptTemplates.js';
 import { retrieveRelevantChunks, RetrievedChunk } from './ragService.js';
 import { calculateTokenUsageAndCost, UsageCalculationResult } from '../utils/costMonitor.js';
 
@@ -101,16 +102,7 @@ export async function executePlannerStage(
   const start = Date.now();
   const ai = getAIClient();
 
-  const prompt = `You are a content strategy planner. Create a content strategy plan for the following:
-Platform: ${platform}
-Tone: ${tone}
-Topic: "${topic}"
-
-Produce a strategy plan with:
-- targetAudience: who the content is for
-- keyAngles: exactly 3 distinct content angles or hooks
-- suggestedSections: exactly 3 section headers for the draft
-- retrievalKeywords: relevant space-separated keywords for knowledge retrieval`;
+  const prompt = getPlannerPromptTemplate(platform, tone, topic);
 
   // Fallback plan used when API key is unavailable (offline/test mode)
   let planOutput: StrategyPlanOutput = {
@@ -194,11 +186,7 @@ export async function executeGeneratorStage(
   const start = Date.now();
   const ai = getAIClient();
 
-  const systemInstruction = buildSystemInstructions(
-    'Multi-Step Draft Generator',
-    `Generate content for ${platform} following the plan: Sections (${plan.suggestedSections.join(', ')}).`,
-    'High quality multi-section draft.'
-  );
+  const systemInstruction = getGeneratorSystemPrompt(platform, plan.suggestedSections);
 
   const prompt = `${systemInstruction}
 
@@ -276,83 +264,98 @@ export async function executeRefinerStage(
 /**
  * Main Multi-Step Agent Orchestrator Pipeline
  */
+export class AgentOrchestrator {
+  async execute(
+    userId: string,
+    topic: string,
+    platform: string = 'LinkedIn',
+    tone: string = 'Professional'
+  ): Promise<MultiStepAgentExecutionResult> {
+    const startTime = Date.now();
+    const executionId = `agent_exec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const defense = sanitizeAndGuardPrompt(topic, 3000);
+
+    // Stage 1: Planner
+    const plannerStartedAt = new Date().toISOString();
+    const plannerRes = await executePlannerStage(defense.wrappedUserContent, platform, tone);
+    const plannerStage: AgentStageResult<StrategyPlanOutput> = {
+      stage: 'planner',
+      status: 'completed',
+      startedAt: plannerStartedAt,
+      completedAt: new Date().toISOString(),
+      durationMs: plannerRes.durationMs,
+      output: plannerRes.output,
+    };
+
+    // Stage 2: Knowledge Retriever
+    const retrieverStartedAt = new Date().toISOString();
+    const retrieverRes = await executeRetrieverStage(userId, plannerRes.output.retrievalKeywords);
+    const retrieverStage: AgentStageResult<{ retrievedChunks: RetrievedChunk[]; contextText: string }> = {
+      stage: 'retriever',
+      status: 'completed',
+      startedAt: retrieverStartedAt,
+      completedAt: new Date().toISOString(),
+      durationMs: retrieverRes.durationMs,
+      output: retrieverRes.output,
+    };
+
+    // Stage 3: Generator
+    const generatorStartedAt = new Date().toISOString();
+    const generatorRes = await executeGeneratorStage(topic, platform, plannerRes.output, retrieverRes.output.contextText);
+    const generatorStage: AgentStageResult<GeneratorOutput> = {
+      stage: 'generator',
+      status: 'completed',
+      startedAt: generatorStartedAt,
+      completedAt: new Date().toISOString(),
+      durationMs: generatorRes.durationMs,
+      output: generatorRes.output,
+    };
+
+    // Stage 4: Refiner
+    const refinerStartedAt = new Date().toISOString();
+    const refinerRes = await executeRefinerStage(generatorRes.output.rawDraft, defense.isSuspicious);
+    const refinerStage: AgentStageResult<RefinedFinalOutput> = {
+      stage: 'refiner',
+      status: 'completed',
+      startedAt: refinerStartedAt,
+      completedAt: new Date().toISOString(),
+      durationMs: refinerRes.durationMs,
+      output: refinerRes.output,
+    };
+
+    const totalDurationMs = Date.now() - startTime;
+    const fullPromptText = `${topic} (${platform} - ${tone})`;
+    const totalUsage = calculateTokenUsageAndCost(fullPromptText, refinerRes.output.finalContent, 'gemini-3.6-flash');
+
+    return {
+      executionId,
+      userId,
+      topic,
+      platform,
+      isSuspicious: defense.isSuspicious,
+      suspiciousReason: defense.suspiciousReason,
+      stages: {
+        planner: plannerStage,
+        retriever: retrieverStage,
+        generator: generatorStage,
+        refiner: refinerStage,
+      },
+      totalDurationMs,
+      totalUsage,
+    };
+  }
+}
+
+/**
+ * Main Multi-Step Agent Orchestrator Pipeline (Compatibility wrapper)
+ */
 export async function runMultiStepAgent(
   userId: string,
   topic: string,
   platform: string = 'LinkedIn',
   tone: string = 'Professional'
 ): Promise<MultiStepAgentExecutionResult> {
-  const startTime = Date.now();
-  const executionId = `agent_exec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-  const defense = sanitizeAndGuardPrompt(topic, 3000);
-
-  // Stage 1: Planner
-  const plannerStartedAt = new Date().toISOString();
-  const plannerRes = await executePlannerStage(defense.wrappedUserContent, platform, tone);
-  const plannerStage: AgentStageResult<StrategyPlanOutput> = {
-    stage: 'planner',
-    status: 'completed',
-    startedAt: plannerStartedAt,
-    completedAt: new Date().toISOString(),
-    durationMs: plannerRes.durationMs,
-    output: plannerRes.output,
-  };
-
-  // Stage 2: Knowledge Retriever
-  const retrieverStartedAt = new Date().toISOString();
-  const retrieverRes = await executeRetrieverStage(userId, plannerRes.output.retrievalKeywords);
-  const retrieverStage: AgentStageResult<{ retrievedChunks: RetrievedChunk[]; contextText: string }> = {
-    stage: 'retriever',
-    status: 'completed',
-    startedAt: retrieverStartedAt,
-    completedAt: new Date().toISOString(),
-    durationMs: retrieverRes.durationMs,
-    output: retrieverRes.output,
-  };
-
-  // Stage 3: Generator
-  const generatorStartedAt = new Date().toISOString();
-  const generatorRes = await executeGeneratorStage(topic, platform, plannerRes.output, retrieverRes.output.contextText);
-  const generatorStage: AgentStageResult<GeneratorOutput> = {
-    stage: 'generator',
-    status: 'completed',
-    startedAt: generatorStartedAt,
-    completedAt: new Date().toISOString(),
-    durationMs: generatorRes.durationMs,
-    output: generatorRes.output,
-  };
-
-  // Stage 4: Refiner
-  const refinerStartedAt = new Date().toISOString();
-  const refinerRes = await executeRefinerStage(generatorRes.output.rawDraft, defense.isSuspicious);
-  const refinerStage: AgentStageResult<RefinedFinalOutput> = {
-    stage: 'refiner',
-    status: 'completed',
-    startedAt: refinerStartedAt,
-    completedAt: new Date().toISOString(),
-    durationMs: refinerRes.durationMs,
-    output: refinerRes.output,
-  };
-
-  const totalDurationMs = Date.now() - startTime;
-  const fullPromptText = `${topic} (${platform} - ${tone})`;
-  const totalUsage = calculateTokenUsageAndCost(fullPromptText, refinerRes.output.finalContent, 'gemini-3.6-flash');
-
-  return {
-    executionId,
-    userId,
-    topic,
-    platform,
-    isSuspicious: defense.isSuspicious,
-    suspiciousReason: defense.suspiciousReason,
-    stages: {
-      planner: plannerStage,
-      retriever: retrieverStage,
-      generator: generatorStage,
-      refiner: refinerStage,
-    },
-    totalDurationMs,
-    totalUsage,
-  };
+  const orchestrator = new AgentOrchestrator();
+  return await orchestrator.execute(userId, topic, platform, tone);
 }

@@ -4,7 +4,7 @@ import {
   executeRetrieverStage,
   executeGeneratorStage,
   executeRefinerStage,
-  runMultiStepAgent,
+  AgentOrchestrator,
 } from '../../services/multiStepAgentService.js';
 import mongoose from 'mongoose';
 
@@ -67,7 +67,8 @@ describe('Multi-Step AI Agent Workflow Engine', () => {
 
   it('should orchestrate complete 4-stage multi-step agent flow end-to-end', async () => {
     const mockUserId = new mongoose.Types.ObjectId().toString();
-    const result = await runMultiStepAgent(mockUserId, 'Building scalable microservices', 'Twitter', 'Technical');
+    const orchestrator = new AgentOrchestrator();
+    const result = await orchestrator.execute(mockUserId, 'Building scalable microservices', 'Twitter', 'Technical');
 
     expect(result.executionId).toBeDefined();
     expect(result.stages.planner.status).toBe('completed');

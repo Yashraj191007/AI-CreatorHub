@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { KnowledgeDoc, IKnowledgeDoc } from '../models/KnowledgeDoc.js';
-import { sanitizeAndGuardPrompt, buildSystemInstructions } from '../utils/promptDefense.js';
+import { sanitizeAndGuardPrompt } from '../utils/promptDefense.js';
+import { RAG_SYSTEM_PROMPT } from '../utils/promptTemplates.js';
 import { calculateTokenUsageAndCost, UsageCalculationResult } from '../utils/costMonitor.js';
 
 function getAIClient(): GoogleGenAI {
@@ -182,13 +183,7 @@ export async function generateRAGAugmentedResponse(
     : 'No relevant vector knowledge base context found.';
 
   const ai = getAIClient();
-  const systemInstruction = buildSystemInstructions(
-    'RAG Creator Knowledge Assistant',
-    'Answer user queries using ONLY the retrieved vector knowledge context whenever possible.',
-    'Clear, factual answer grounded in the retrieved documents.'
-  );
-
-  const prompt = `${systemInstruction}
+  const prompt = `${RAG_SYSTEM_PROMPT}
 
 ### Context
 Retrieved Vector Context:

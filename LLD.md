@@ -166,6 +166,7 @@ Referenced in `prisma/schema.prisma`:
 
 ## 13. Multi-Step Agent Pipeline
 - Implemented in `server/services/multiStepAgentService.ts`. Route: `POST /api/ai/multi-step-agent`.
+- Orchestrated by `AgentOrchestrator` class that sequentially executes four explicit stages: Planner → Retriever → Generator → Refiner.
 - **Stage 1 (Planner)**: Calls Gemini with `responseMimeType: 'application/json'` + `responseSchema` to produce a typed content strategy (targetAudience, keyAngles, suggestedSections, retrievalKeywords).
 - **Stage 2 (Retriever)**: Uses `plannerOutput.retrievalKeywords` to query the RAG vector store via `retrieveRelevantChunks()`.
 - **Stage 3 (Generator)**: Uses Stage 1 plan + Stage 2 context to synthesise a multi-section draft via `generateContent()`.
@@ -188,10 +189,12 @@ Referenced in `prisma/schema.prisma`:
 - `EVALUATION_DATASET` contains benchmark cases across: `security_injection`, `caption_constraints`, `multi_step_agent`, `rag_relevance`, `json_schema`.
 - `runLLMEvalSuite(dataset)` iterates over cases, executes live application pipeline components (`sanitizeAndGuardPrompt`, `executePlannerStage`, `retrieveRelevantChunks`), asserts criteria, and returns `EvalReport { totalCases, passedCases, overallScorePercentage, categoryScores }`.
 - Benchmark suite test in `server/tests/evals/llmEval.test.ts` verifies ≥80% overall pass rate.
+- Can be run as an explicit project command via `npm run eval`.
 
 ## 17. Input Sanitization & Prompt Injection Defense
 - **Input Sanitization**: Implemented as an Express middleware in `server/middleware/inputSanitization.ts`. It globally intercepts requests to `aiRoutes` and `contentRoutes`. It recursively parses request bodies to neutralize Cross-Site Scripting (XSS) vectors (e.g., `<script>`, `javascript:`, inline event handlers) from user-generated text while ignoring sensitive authentication fields like passwords. This protects the application structure and other users.
 - **Prompt Injection Defense**: Implemented in `server/utils/promptDefense.ts`. Specifically targets LLM vulnerabilities by scanning for bypass patterns (e.g., "ignore previous instructions", "jailbroken") and wrapping user inputs in strictly defined `<user_content>` delimiters with escaping. This protects the LLM from manipulation.
+- **Prompt Engineering**: Core system prompts are extracted into `server/utils/promptTemplates.ts` as reusable template functions and constants (e.g., `CAPTION_SYSTEM_PROMPT`). This separates intended AI instructions from the prompt-defense security layer.
 - **Validation**: `Zod` schemas in `server/validators/` ensure data types, structure, and length limits are respected before reaching business logic.
 
 ## 11. Testing Structure
