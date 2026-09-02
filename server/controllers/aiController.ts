@@ -8,7 +8,12 @@ import {
   summarizeContent,
   generateHashtags,
   runAssistantToolChat,
+  generateContentStream,
 } from '../services/geminiService.js';
+import { runMultiStepAgent } from '../services/multiStepAgentService.js';
+import { generateRAGAugmentedResponse, indexKnowledgeDocument } from '../services/ragService.js';
+import { aggregateUsageStats } from '../utils/costMonitor.js';
+
 import {
   aiCaptionSchema,
   aiRewriteSchema,
@@ -204,3 +209,132 @@ export async function getAIHistory(req: AuthRequest, res: Response, next: NextFu
     next(error);
   }
 }
+
+export async function handleMultiStepAgent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { topic, platform = 'LinkedIn', tone = 'Professional' } = req.body;
+    if (!topic || typeof topic !== 'string') {
+      res.status(400).json({ success: false, error: 'Topic is required' });
+      return;
+    }
+    const userId = req.user?._id?.toString() || '';
+
+    const agentResult = await runMultiStepAgent(userId, topic, platform, tone);
+
+    await AIRequest.create({
+      userId: req.user?._id,
+      operationType: 'multiStepAgent',
+      prompt: topic,
+      result: agentResult.stages.refiner.output.finalContent,
+      isSuspicious: agentResult.isSuspicious,
+      suspiciousReason: agentResult.suspiciousReason || '',
+      promptTokens: agentResult.totalUsage.promptTokens,
+      candidateTokens: agentResult.totalUsage.candidateTokens,
+      totalTokens: agentResult.totalUsage.totalTokens,
+      estimatedCostUSD: agentResult.totalUsage.estimatedCostUSD,
+    });
+
+    res.json({
+      success: true,
+      data: agentResult,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function handleRAGSearch(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { query, topK = 3 } = req.body;
+    if (!query || typeof query !== 'string') {
+      res.status(400).json({ success: false, error: 'Query is required' });
+      return;
+    }
+    const userId = req.user?._id?.toString() || '';
+
+    const ragResult = await generateRAGAugmentedResponse(userId, query, topK);
+
+    await AIRequest.create({
+      userId: req.user?._id,
+      operationType: 'ragSearch',
+      prompt: query,
+      result: ragResult.reply,
+      isSuspicious: ragResult.isSuspicious,
+      promptTokens: ragResult.usage.promptTokens,
+      candidateTokens: ragResult.usage.candidateTokens,
+      totalTokens: ragResult.usage.totalTokens,
+      estimatedCostUSD: ragResult.usage.estimatedCostUSD,
+    });
+
+    res.json({
+      success: true,
+      data: ragResult,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function handleIndexKnowledgeDoc(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { title, content, category = 'General' } = req.body;
+    if (!title || !content) {
+      res.status(400).json({ success: false, error: 'Title and content are required' });
+      return;
+    }
+    const userId = req.user?._id?.toString() || '';
+
+    const indexRes = await indexKnowledgeDocument(userId, title, content, category);
+
+    res.json({
+      success: true,
+      message: `Successfully indexed ${indexRes.indexedChunksCount} vector document chunks`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function handleStreamContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { prompt } = req.body;
+    if (!prompt || typeof prompt !== 'string') {
+      res.status(400).json({ success: false, error: 'Prompt is required' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const result = await generateContentStream(prompt, (chunk) => {
+      res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+    });
+
+    res.write(`data: ${JSON.stringify({ done: true, result: result.fullText })}\n\n`);
+    res.end();
+  } catch (error) {
+    if (!res.headersSent) {
+      next(error);
+    } else {
+      res.write(`data: ${JSON.stringify({ error: (error as Error).message })}\n\n`);
+      res.end();
+    }
+  }
+}
+
+export async function handleGetAIUsageStats(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const userId = req.user?._id;
+    const requests = await AIRequest.find({ userId });
+    const stats = aggregateUsageStats(requests);
+
+    res.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

@@ -283,3 +283,61 @@ Friendly, constructive, creator-focused summaries based on retrieved data.`;
     suspiciousReason: defense.suspiciousReason,
   };
 }
+
+export async function generateContentStream(
+  promptText: string,
+  onChunk: (chunkText: string) => void
+): Promise<{ fullText: string; isSuspicious: boolean; suspiciousReason?: string }> {
+  const defense = sanitizeAndGuardPrompt(promptText, 4000);
+  const ai = getAIClient();
+
+  const systemInstruction = buildSystemInstructions(
+    'Streaming Creator Assistant',
+    'Generate detailed creator content streaming token by token.',
+    'Clear, engaging content.'
+  );
+
+  const prompt = `${systemInstruction}\n\n### Context\nUser Prompt:\n${defense.wrappedUserContent}`;
+
+  let fullText = '';
+  if (process.env.GEMINI_API_KEY) {
+    try {
+      const responseStream = await ai.models.generateContentStream({
+        model: 'gemini-3.6-flash',
+        contents: prompt,
+        config: { temperature: 0.7 },
+      });
+
+      for await (const chunk of responseStream) {
+        const chunkText = chunk.text || '';
+        if (chunkText) {
+          fullText += chunkText;
+          onChunk(chunkText);
+        }
+      }
+    } catch (e) {
+      console.warn('Gemini stream API error:', (e as Error).message);
+      fullText = 'Unable to complete streaming request.';
+      onChunk(fullText);
+    }
+  } else {
+    // Offline/Test streaming simulation chunking
+    const mockChunks = [
+      '### Content Draft\n',
+      'Here is your requested content, ',
+      'generated progressively using streaming. ',
+      'Enjoy seamless real-time output!',
+    ];
+    for (const chunkText of mockChunks) {
+      fullText += chunkText;
+      onChunk(chunkText);
+    }
+  }
+
+  return {
+    fullText,
+    isSuspicious: defense.isSuspicious,
+    suspiciousReason: defense.suspiciousReason,
+  };
+}
+

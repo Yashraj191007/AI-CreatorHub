@@ -3,12 +3,16 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IAIRequest extends Document {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
-  operationType: 'generateCaptions' | 'generateContent' | 'rewriteContent' | 'summarizeContent' | 'generateHashtags' | 'assistantToolChat';
+  operationType: 'generateCaptions' | 'generateContent' | 'rewriteContent' | 'summarizeContent' | 'generateHashtags' | 'assistantToolChat' | 'multiStepAgent' | 'ragSearch' | 'streamContent';
   prompt: string;
   result?: string;
   isSuspicious: boolean;
   suspiciousReason?: string;
   toolCallsCount: number;
+  promptTokens?: number;
+  candidateTokens?: number;
+  totalTokens?: number;
+  estimatedCostUSD?: number;
   createdAt: Date;
 }
 
@@ -23,7 +27,7 @@ const AIRequestSchema = new Schema<IAIRequest>(
     operationType: {
       type: String,
       required: true,
-      enum: ['generateCaptions', 'generateContent', 'rewriteContent', 'summarizeContent', 'generateHashtags', 'assistantToolChat'],
+      enum: ['generateCaptions', 'generateContent', 'rewriteContent', 'summarizeContent', 'generateHashtags', 'assistantToolChat', 'multiStepAgent', 'ragSearch', 'streamContent'],
       index: true,
     },
     prompt: {
@@ -46,6 +50,22 @@ const AIRequestSchema = new Schema<IAIRequest>(
       type: Number,
       default: 0,
     },
+    promptTokens: {
+      type: Number,
+      default: 0,
+    },
+    candidateTokens: {
+      type: Number,
+      default: 0,
+    },
+    totalTokens: {
+      type: Number,
+      default: 0,
+    },
+    estimatedCostUSD: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },
@@ -53,3 +73,4 @@ const AIRequestSchema = new Schema<IAIRequest>(
 );
 
 export const AIRequest = mongoose.model<IAIRequest>('AIRequest', AIRequestSchema);
+

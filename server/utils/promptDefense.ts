@@ -9,13 +9,20 @@ const SUSPICIOUS_PATTERNS = [
   /ignore\s+(all\s+)?(previous|above|prior)\s+(instructions|prompts|rules)/i,
   /forget\s+(all\s+)?(previous|above|prior)\s+(instructions|rules)/i,
   /system\s+instruction\s+override/i,
-  /you\s+are\s+now\s+(a\s+)?(DAN|jailbroken|unfiltered|root|developer)/i,
+  /(you\s+are\s+now|pretend\s+you\s+are)\s+(a|an\s+)?(DAN|jailbroken|unfiltered|unconstrained|root|developer)/i,
+  /\bDAN\b\s*(\(do\s+anything\s+now\))?/i,
   /bypass\s+(safety|content|security)\s+filter/i,
   /reveal\s+(the\s+)?(system\s+prompt|secret|api\s+key|password)/i,
   /disregard\s+safety\s+guidelines/i,
   /\[system\]/i,
+  /<system>/i,
+  /<\/user_content>/i,
+  /<\/system>/i,
   /<script[\s\S]*?>/i,
 ];
+
+
+
 
 export function sanitizeAndGuardPrompt(input: string, maxChars: number = 3000): PromptDefenseResult {
   if (!input || typeof input !== 'string') {
