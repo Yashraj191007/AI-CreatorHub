@@ -2,11 +2,14 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'aicreatorhub_secure_jwt_secret_key_2026_xyz';
-
 let io: Server | null = null;
 
 export const initWebSocket = (server: HttpServer) => {
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable is required for WebSocket authentication.');
+  }
+
   io = new Server(server, {
     cors: {
       origin: true,

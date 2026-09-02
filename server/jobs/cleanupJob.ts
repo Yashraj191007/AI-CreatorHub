@@ -21,6 +21,7 @@ export const initCleanupJob = () => {
       console.error('[Cron] Error running cleanup job:', error);
       // We gracefully swallow the error so it doesn't crash the server.
     }
+  }, {
     timezone: "UTC"
   });
   

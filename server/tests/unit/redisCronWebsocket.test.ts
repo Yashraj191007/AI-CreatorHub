@@ -100,7 +100,7 @@ describe('Batch 2: Redis, Cron, and WebSocket', () => {
       process.env.AI_REQUEST_RETENTION_DAYS = '90';
       initCleanupJob();
 
-      expect(cron.schedule).toHaveBeenCalledWith('0 0 * * *', expect.any(Function));
+      expect(cron.schedule).toHaveBeenCalledWith('0 0 * * *', expect.any(Function), expect.objectContaining({ timezone: 'UTC' }));
     });
 
     it('should delete AIRequest records older than retention period', async () => {
@@ -126,12 +126,14 @@ describe('Batch 2: Redis, Cron, and WebSocket', () => {
 
   describe('WebSocket Implementation', () => {
     it('should attach Socket.IO to HTTP server and register middleware', () => {
+      process.env.JWT_SECRET = 'test_secret';
       const mockHttpServer = {} as HttpServer;
       initWebSocket(mockHttpServer);
       expect(SocketIOServer).toHaveBeenCalledWith(mockHttpServer, expect.any(Object));
     });
 
     it('should emit AI notification events to specific user rooms', () => {
+      process.env.JWT_SECRET = 'test_secret';
       const mockHttpServer = {} as HttpServer;
       initWebSocket(mockHttpServer); // Sets up internal io instance
 
