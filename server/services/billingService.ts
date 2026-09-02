@@ -1,11 +1,39 @@
 import prisma from '../config/prisma.js';
+import { redisClient } from '../config/redis.js';
 
 export const getPlans = async () => {
-  return prisma.plan.findMany({
+  const CACHE_KEY = 'billing:plans';
+  
+  // 1. Cache Lookup
+  if (redisClient.isOpen) {
+    try {
+      const cached = await redisClient.get(CACHE_KEY);
+      if (cached) {
+        return JSON.parse(cached as string);
+      }
+    } catch (err) {
+      console.error('Redis cache hit error:', err);
+      // Gracefully fallback to Prisma on Redis error
+    }
+  }
+
+  // 2. Cache Miss: Query Database
+  const plans = await prisma.plan.findMany({
     include: {
       features: true,
     },
   });
+  
+  // 3. Populate Cache
+  if (redisClient.isOpen) {
+    try {
+      await redisClient.setEx(CACHE_KEY, 3600, JSON.stringify(plans)); // 1 hour TTL
+    } catch (err) {
+      console.error('Redis cache set error:', err);
+    }
+  }
+  
+  return plans;
 };
 
 export const getBillingHistory = async (userId: string) => {
