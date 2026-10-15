@@ -13,6 +13,8 @@ export interface User {
   status?: UserStatus;
   bio?: string;
   avatar?: string;
+  authProvider?: 'local' | 'google' | 'github';
+  googleId?: string;
   socialHandles?: {
     twitter?: string;
     instagram?: string;

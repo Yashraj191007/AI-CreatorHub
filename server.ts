@@ -21,7 +21,15 @@ async function startServer() {
   await connectRedis();
   
   // Initialize Scheduled Jobs (Cron)
-  initCleanupJob();
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.ENABLE_CRON === 'true') {
+      initCleanupJob();
+    } else {
+      console.log('[Server] Scheduled cron cleanup disabled on this instance by default. Set ENABLE_CRON=true to designate this instance as the worker.');
+    }
+  } else if (process.env.ENABLE_CRON !== 'false') {
+    initCleanupJob();
+  }
 
   // Vite Integration for Development / Static Production Serving
   if (process.env.NODE_ENV !== 'production') {

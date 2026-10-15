@@ -5,6 +5,10 @@ import helmet from 'helmet';
 import { errorHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 
+import mongoose from 'mongoose';
+import prisma from './config/prisma.js';
+import { redisClient } from './config/redis.js';
+
 // Route Imports
 import authRoutes from './routes/authRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
@@ -41,9 +45,39 @@ app.use('/api', apiLimiter);
 const uploadDir = path.join(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadDir));
 
-// Health Check Endpoint
+// Process Liveness Probe
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Dependency Readiness Probe (checks MongoDB, PostgreSQL, and Redis without exposing credentials)
+app.get('/api/health/readiness', async (_req, res) => {
+  const isMongoConnected = mongoose.connection.readyState === 1;
+  let isPostgresConnected = false;
+
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    isPostgresConnected = true;
+  } catch {
+    isPostgresConnected = false;
+  }
+
+  const isRedisConnected = Boolean(redisClient.isOpen);
+  const isReady = isMongoConnected && isPostgresConnected;
+
+  res.status(isReady ? 200 : 503).json({
+    status: isReady ? 'ready' : 'unhealthy',
+    services: {
+      mongodb: isMongoConnected ? 'connected' : 'disconnected',
+      postgresql: isPostgresConnected ? 'connected' : 'disconnected',
+      redis: isRedisConnected ? 'connected' : 'disconnected',
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Mount API Routes

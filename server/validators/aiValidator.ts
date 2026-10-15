@@ -31,3 +31,11 @@ export const aiAssistantChatSchema = z.object({
     parts: z.array(z.object({ text: z.string() })),
   })).optional().default([]),
 });
+
+export const aiGenerateContentSchema = z.object({
+  topic: z.string().min(2, 'Topic is required and must be at least 2 characters').max(1000),
+  category: z.enum(['Social Media', 'Blog Post', 'Video Script', 'Newsletter', 'Ad Copy', 'Other']).optional().default('Social Media'),
+  platform: z.enum(['Instagram', 'YouTube', 'X/Twitter', 'LinkedIn', 'TikTok', 'Blog', 'General']).optional().default('General'),
+  instructions: z.string().max(2000).optional(),
+});
+

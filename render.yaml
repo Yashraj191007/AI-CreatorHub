@@ -4,16 +4,35 @@ services:
     env: node
     buildCommand: npm install && npx prisma generate && npm run build
     startCommand: npm start
+    # Note: Render persistent disks require a paid Starter plan ($7/mo).
+    # On Render Free Tier, disks are unavailable; remove or comment the disk block below.
+    # For durable uploads on free tier, external object storage (e.g. AWS S3/Cloudinary) is recommended.
+    # disk:
+    #   name: media-uploads
+    #   mountPath: /app/uploads
+    #   sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 5000
+      - key: APP_URL
+        sync: false
       - key: MONGODB_URI
         sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
         sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
+      - key: ENABLE_CRON
+        value: "true"

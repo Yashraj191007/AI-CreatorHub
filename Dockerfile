@@ -8,6 +8,7 @@ COPY prisma ./prisma/
 
 # Install dependencies and generate Prisma client
 RUN npm install
+RUN npx prisma generate
 
 # Copy application source code
 COPY . .
@@ -25,7 +26,11 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/uploads ./uploads
+
+# Ensure uploads directory exists and drop root privileges to node user
+RUN mkdir -p /app/uploads && chown -R node:node /app
+
+USER node
 
 EXPOSE 5000
 
@@ -34,3 +39,4 @@ ENV PORT=5000
 
 # Start the application
 CMD ["npm", "start"]
+

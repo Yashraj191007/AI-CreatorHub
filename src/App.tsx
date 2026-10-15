@@ -26,8 +26,9 @@ const ProtectedLayout: React.FC = () => {
     let socket: Socket | null = null;
     if (token) {
       // Connect to the backend with JWT for authentication
-      const apiUrl = (import.meta as any).env?.VITE_API_URL || window.location.origin;
-      socket = io(apiUrl, {
+      const rawApiUrl = (import.meta as any).env?.VITE_API_URL || window.location.origin;
+      const socketUrl = rawApiUrl.replace(/\/api\/?$/, '');
+      socket = io(socketUrl, {
         auth: { token },
       });
 

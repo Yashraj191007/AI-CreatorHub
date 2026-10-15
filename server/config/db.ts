@@ -7,6 +7,19 @@ export async function connectDB(): Promise<void> {
   try {
     const uri = process.env.MONGODB_URI;
 
+    // In production, strictly require valid MONGODB_URI and fail-closed
+    if (process.env.NODE_ENV === 'production') {
+      if (!uri) {
+        throw new Error(
+          '[FATAL] MONGODB_URI environment variable is required in production. Embedded MongoMemoryServer fallback is disabled in production.'
+        );
+      }
+      console.log('Connecting to configured production MongoDB URI...');
+      await mongoose.connect(uri);
+      console.log('Connected to MongoDB successfully.');
+      return;
+    }
+
     if (uri && uri !== 'mongodb://localhost:27017/aicreatorhub') {
       try {
         console.log('Connecting to configured MongoDB URI...');
@@ -29,7 +42,8 @@ export async function connectDB(): Promise<void> {
       console.log('Local MongoDB not accessible. Starting embedded MongoMemoryServer...');
     }
 
-    // Fallback to MongoMemoryServer for out-of-the-box working database
+    // Fallback to MongoMemoryServer for out-of-the-box working database in development/test
+
     mongoMemoryServer = await MongoMemoryServer.create({
       instance: {
         dbName: 'aicreatorhub',

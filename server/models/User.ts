@@ -10,6 +10,9 @@ export interface IUser extends Document {
   status: 'active' | 'disabled';
   bio?: string;
   avatar?: string;
+  authProvider?: 'local' | 'google' | 'github';
+  googleId?: string;
+  githubId?: string;
   socialHandles?: {
     twitter?: string;
     instagram?: string;
@@ -39,9 +42,28 @@ const UserSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function (this: IUser) {
+        return !this.googleId && !this.githubId && (!this.authProvider || this.authProvider === 'local');
+      },
       minlength: [6, 'Password must be at least 6 characters'],
       select: false,
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google', 'github'],
+      default: 'local',
+      index: true,
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+      index: true,
+    },
+    githubId: {
+      type: String,
+      sparse: true,
+      index: true,
     },
     role: {
       type: String,
