@@ -34,21 +34,22 @@ export async function seedInitialData(): Promise<void> {
 
         const existingUser = await User.findOne({ email: adminEmail });
         if (existingUser) {
-          existingUser.role = 'ADMIN';
-          existingUser.password = adminPassword; // Hashed by User pre('save') hook
-          await existingUser.save();
-          console.log(`[Security] Existing user ${adminEmail} promoted to administrator.`);
-        } else {
-          await User.create({
-            name: adminName,
-            email: adminEmail,
-            password: adminPassword, // Hashed by User pre('save') hook
-            role: 'ADMIN',
-            status: 'active',
-            bio: 'Platform System Administrator',
-          });
-          console.log(`[Security] Successfully provisioned initial administrator for ${adminEmail}.`);
+          console.warn(
+            `[Security] User with email ${adminEmail} already exists as a non-admin account. ` +
+            'Cannot promote existing non-admin user or overwrite password during bootstrap. Provisioning aborted.'
+          );
+          return;
         }
+
+        await User.create({
+          name: adminName,
+          email: adminEmail,
+          password: adminPassword, // Hashed by User pre('save') hook
+          role: 'ADMIN',
+          status: 'active',
+          bio: 'Platform System Administrator',
+        });
+        console.log(`[Security] Successfully provisioned initial administrator for ${adminEmail}.`);
       } else {
         console.warn(
           '[Security] No administrator account found. To provision the initial administrator, ' +

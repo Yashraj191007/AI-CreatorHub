@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { connectTestDB, closeTestDB, clearTestDB } from '../setup.js';
 import { User } from '../../models/User.js';
 import { seedInitialData } from '../../utils/seed.js';
@@ -37,7 +37,7 @@ describe('Production Administrator Seeding & Security Tests', () => {
     }
   });
 
-  it('should provision initial admin in production when INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD are provided', async () => {
+  it('should provision initial admin in production when INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD are provided and user does not exist', async () => {
     const origEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
     process.env.INITIAL_ADMIN_EMAIL = 'superadmin@example.com';
@@ -81,16 +81,72 @@ describe('Production Administrator Seeding & Security Tests', () => {
     }
   });
 
-  it('should not overwrite or duplicate existing admin in production', async () => {
+  it('should reject provisioning if INITIAL_ADMIN_EMAIL is not a valid email address', async () => {
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    process.env.INITIAL_ADMIN_EMAIL = 'invalid-email-string';
+    process.env.INITIAL_ADMIN_PASSWORD = 'valid_long_password_12345';
+
+    try {
+      await seedInitialData();
+
+      const userCount = await User.countDocuments();
+      expect(userCount).toBe(0);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  it('should NOT promote an existing non-admin user or change their password if INITIAL_ADMIN_EMAIL matches', async () => {
     const origEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
 
     try {
-      // Pre-existing admin
+      // Pre-existing non-admin customer account
+      const originalPassword = 'user_original_secure_password_123';
+      const existingUser = await User.create({
+        name: 'Regular Customer',
+        email: 'existing-user@example.com',
+        password: originalPassword,
+        role: 'USER',
+      });
+
+      process.env.INITIAL_ADMIN_EMAIL = 'existing-user@example.com';
+      process.env.INITIAL_ADMIN_PASSWORD = 'attempted_admin_takeover_pw_999';
+
+      await seedInitialData();
+
+      // Verify the user remains USER and their password was not altered
+      const userAfter = await User.findById(existingUser._id).select('+password');
+      expect(userAfter).toBeDefined();
+      expect(userAfter?.role).toBe('USER');
+      expect(userAfter?.name).toBe('Regular Customer');
+
+      const isOriginalPwValid = await userAfter?.comparePassword(originalPassword);
+      expect(isOriginalPwValid).toBe(true);
+
+      const isNewPwValid = await userAfter?.comparePassword('attempted_admin_takeover_pw_999');
+      expect(isNewPwValid).toBe(false);
+
+      // Verify no admin account exists
+      const adminCount = await User.countDocuments({ role: 'ADMIN' });
+      expect(adminCount).toBe(0);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+    }
+  });
+
+  it('should not overwrite, duplicate, or alter existing admin in production', async () => {
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+
+    try {
+      // Pre-existing admin with known password
+      const originalAdminPassword = 'admin_original_secure_password_987';
       const existing = await User.create({
         name: 'Existing Admin',
         email: 'existing-admin@example.com',
-        password: 'existing_admin_password_hash',
+        password: originalAdminPassword,
         role: 'ADMIN',
       });
 
@@ -100,9 +156,14 @@ describe('Production Administrator Seeding & Security Tests', () => {
       await seedInitialData();
 
       // Count of admins should still be exactly 1
-      const admins = await User.find({ role: 'ADMIN' });
+      const admins = await User.find({ role: 'ADMIN' }).select('+password');
       expect(admins.length).toBe(1);
       expect(admins[0].email).toBe('existing-admin@example.com');
+      expect(admins[0].name).toBe('Existing Admin');
+
+      // Verify password unchanged
+      const isPwValid = await admins[0].comparePassword(originalAdminPassword);
+      expect(isPwValid).toBe(true);
     } finally {
       process.env.NODE_ENV = origEnv;
     }
