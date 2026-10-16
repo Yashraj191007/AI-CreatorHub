@@ -220,4 +220,32 @@ describe('Security & Authentication Hardening Tests', () => {
     expect(jsonString).not.toContain('redis://');
     expect(jsonString).not.toContain('password');
   });
+
+  it('should return 404 JSON for unknown /api and /api/* routes instead of serving index.html', async () => {
+    const res1 = await request(app).get('/api');
+    expect(res1.status).toBe(404);
+    expect(res1.body.success).toBe(false);
+    expect(res1.body.error).toBe('API endpoint not found');
+
+    const res2 = await request(app).get('/api/non-existent-endpoint');
+    expect(res2.status).toBe(404);
+    expect(res2.body.success).toBe(false);
+    expect(res2.body.error).toBe('API endpoint not found');
+  });
+
+  it('should block public access to backend bundle files and sourcemaps', async () => {
+    const res1 = await request(app).get('/server.cjs');
+    expect(res1.status).toBe(404);
+    expect(res1.body.success).toBe(false);
+    expect(res1.body.error).toBe('Not found');
+
+    const res2 = await request(app).get('/server.cjs.map');
+    expect(res2.status).toBe(404);
+    expect(res2.body.success).toBe(false);
+    expect(res2.body.error).toBe('Not found');
+
+    const res3 = await request(app).get('/dist/server.cjs');
+    expect(res3.status).toBe(404);
+    expect(res3.body.success).toBe(false);
+  });
 });

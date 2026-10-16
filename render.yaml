@@ -3,7 +3,9 @@ services:
     name: ai-creatorhub-backend
     env: node
     buildCommand: npm install && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
     startCommand: npm start
+    healthCheckPath: /api/health
     # Note: Render persistent disks require a paid Starter plan ($7/mo).
     # On Render Free Tier, disks are unavailable; remove or comment the disk block below.
     # For durable uploads on free tier, external object storage (e.g. AWS S3/Cloudinary) is recommended.
@@ -14,13 +16,14 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 5000
+      # Note: PORT is automatically injected by Render's runtime.
       - key: APP_URL
         sync: false
       - key: MONGODB_URI
         sync: false
       - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
         sync: false
       - key: REDIS_URL
         sync: false
@@ -34,5 +37,10 @@ services:
         sync: false
       - key: GOOGLE_CALLBACK_URL
         sync: false
+      # Cron: In production, set ENABLE_CRON=true in dashboard on designated worker instance
       - key: ENABLE_CRON
-        value: "true"
+        sync: false
+      - key: INITIAL_ADMIN_EMAIL
+        sync: false
+      - key: INITIAL_ADMIN_PASSWORD
+        sync: false

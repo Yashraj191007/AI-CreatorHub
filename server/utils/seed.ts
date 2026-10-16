@@ -3,6 +3,62 @@ import { Content } from '../models/Content.js';
 
 export async function seedInitialData(): Promise<void> {
   try {
+    // 1. Production Mode: Never seed predictable demo credentials or dummy content
+    if (process.env.NODE_ENV === 'production') {
+      const existingAdmin = await User.findOne({ role: 'ADMIN' });
+      if (existingAdmin) {
+        console.log('[Security] Verified existing administrator account.');
+        return;
+      }
+
+      const adminEmail = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+      const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+      const adminName = process.env.INITIAL_ADMIN_NAME?.trim() || 'Platform Administrator';
+
+      if (adminEmail && adminPassword) {
+        // Enforce basic security standards for bootstrap admin
+        if (adminPassword.length < 12) {
+          console.warn(
+            '[Security] INITIAL_ADMIN_PASSWORD must be at least 12 characters long. Administrator account not created.'
+          );
+          return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(adminEmail)) {
+          console.warn(
+            '[Security] INITIAL_ADMIN_EMAIL is not a valid email address. Administrator account not created.'
+          );
+          return;
+        }
+
+        const existingUser = await User.findOne({ email: adminEmail });
+        if (existingUser) {
+          existingUser.role = 'ADMIN';
+          existingUser.password = adminPassword; // Hashed by User pre('save') hook
+          await existingUser.save();
+          console.log(`[Security] Existing user ${adminEmail} promoted to administrator.`);
+        } else {
+          await User.create({
+            name: adminName,
+            email: adminEmail,
+            password: adminPassword, // Hashed by User pre('save') hook
+            role: 'ADMIN',
+            status: 'active',
+            bio: 'Platform System Administrator',
+          });
+          console.log(`[Security] Successfully provisioned initial administrator for ${adminEmail}.`);
+        }
+      } else {
+        console.warn(
+          '[Security] No administrator account found. To provision the initial administrator, ' +
+          'set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD (minimum 12 characters) in environment variables.'
+        );
+      }
+      return;
+    }
+
+    // 2. Non-Production Mode: Seed local demo accounts and content for development
     const userCount = await User.countDocuments();
     if (userCount > 0) {
       return; // Already seeded

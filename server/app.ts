@@ -38,6 +38,22 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Security: Block direct public access to backend bundle files, source maps, and server artifacts
+app.use((req, res, next) => {
+  const cleanPath = req.path.replace(/\0/g, '');
+  const baseName = path.basename(cleanPath).toLowerCase();
+  if (
+    baseName === 'server.cjs' ||
+    baseName.startsWith('server.') ||
+    baseName.endsWith('.map') ||
+    cleanPath.includes('/server.cjs')
+  ) {
+    res.status(404).json({ success: false, error: 'Not found' });
+    return;
+  }
+  next();
+});
+
 // General API Rate Limiter
 app.use('/api', apiLimiter);
 
@@ -87,6 +103,14 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);
+
+// Catch-all 404 handler for unmatched /api routes (covers both /api and /api/*)
+app.all(['/api', '/api/*'], (_req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'API endpoint not found',
+  });
+});
 
 // Global Error Handler for API
 app.use(errorHandler);
