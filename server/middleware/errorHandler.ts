@@ -38,8 +38,27 @@ export function errorHandler(
     message = 'Resource not found or invalid ID format.';
   }
 
+  // Handle Multer upload errors (e.g. fileSize limit, invalid file type)
+  if (err.name === 'MulterError' || (err as any).code === 'LIMIT_FILE_SIZE') {
+    statusCode = 400;
+    if ((err as any).code === 'LIMIT_FILE_SIZE') {
+      message = 'File size exceeds maximum permitted limit (5MB)';
+    } else {
+      message = `File upload error: ${err.message}`;
+    }
+  }
+
+  if (err.message && err.message.startsWith('Invalid file type')) {
+    statusCode = 400;
+    message = err.message;
+  }
+
   if (process.env.NODE_ENV !== 'production' && statusCode === 500) {
     console.error('SERVER ERROR STACK:', err);
+  } else if (process.env.NODE_ENV === 'production' && statusCode === 500) {
+    // Sanitize production 500 error responses to prevent leaking internal database, path, or API details
+    message = 'Internal Server Error';
+    details = null;
   }
 
   res.status(statusCode).json({

@@ -13,6 +13,54 @@ export const LoginPage: React.FC = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthCode = params.get('oauth_code');
+    const returnTo = params.get('return_to') || '/dashboard';
+    const oauthError = params.get('error');
+
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (oauthCode) {
+      // Immediately scrub the exchange code from the browser URL bar and history
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      setLoading(true);
+      api
+        .post('/auth/oauth/exchange-code', { code: oauthCode })
+        .then((res) => {
+          if (res.data.success && res.data.token && res.data.user) {
+            login(res.data.token, res.data.user);
+            const safeReturnTo =
+              returnTo.startsWith('/') &&
+              !returnTo.startsWith('//') &&
+              !returnTo.includes(':') &&
+              !returnTo.includes('\\')
+                ? returnTo
+                : '/dashboard';
+            navigate(safeReturnTo, { replace: true });
+          } else {
+            setError('OAuth login failed: Invalid token response received.');
+          }
+        })
+        .catch((err: any) => {
+          setError(
+            err.response?.data?.error ||
+              'OAuth exchange failed. The login code may have expired or already been used. Please try again.'
+          );
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [login, navigate]);
+
+  const handleGoogleLogin = () => {
+    setError(null);
+    window.location.href = '/api/auth/google';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -61,6 +109,40 @@ export const LoginPage: React.FC = () => {
             <span>{error}</span>
           </div>
         )}
+
+        {/* Google OAuth Button */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="w-full py-2.5 px-4 rounded-xl font-medium text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/70 hover:border-slate-600 flex items-center justify-center gap-3 transition-all shadow-sm group"
+        >
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+            <path
+              fill="#4285F4"
+              d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3h3.88c2.27-2.09 3.66-5.17 3.66-9.09z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.1C3.27 21.43 7.37 24 12 24z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.28 14.32c-.25-.72-.38-1.49-.38-2.32s.13-1.6.38-2.32V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.1z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.37 0 3.27 2.57 1.25 6.58l4.03 3.1c.95-2.83 3.6-4.93 6.72-4.93z"
+            />
+          </svg>
+          <span className="text-sm font-semibold text-slate-100 group-hover:text-white">Continue with Google</span>
+        </button>
+
+        <div className="relative flex items-center justify-center my-2">
+          <div className="border-t border-slate-800 w-full" />
+          <span className="bg-slate-900 px-3 text-[11px] uppercase tracking-wider text-slate-500 font-semibold absolute">
+            or continue with email
+          </span>
+        </div>
 
         {/* Quick Demo Credentials Switcher */}
         <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-2 text-xs">

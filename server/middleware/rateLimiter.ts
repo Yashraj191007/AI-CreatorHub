@@ -32,3 +32,15 @@ export const aiLimiter = rateLimit({
     error: 'AI request rate limit exceeded. AI resources are strictly rate limited to ensure fair availability.',
   },
 });
+
+export const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // 30 media uploads per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'Media upload rate limit exceeded. Please try again after 15 minutes.',
+  },
+});
+

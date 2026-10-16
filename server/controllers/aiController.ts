@@ -21,6 +21,7 @@ import {
   aiSummarizeSchema,
   aiHashtagSchema,
   aiAssistantChatSchema,
+  aiGenerateContentSchema,
 } from '../validators/aiValidator.js';
 
 export async function handleGenerateCaptions(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
@@ -66,20 +67,20 @@ export async function handleGenerateCaptions(req: AuthRequest, res: Response, ne
 
 export async function handleGenerateContent(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { topic, category = 'Social Media', platform = 'General', instructions } = req.body;
+    const validated = aiGenerateContentSchema.parse(req.body);
     const userId = req.user?._id;
 
-    if (!topic || typeof topic !== 'string' || topic.trim() === '') {
-      res.status(400).json({ success: false, error: 'Topic is required' });
-      return;
-    }
-
-    const result = await generateContentDraft(topic, category, platform, instructions);
+    const result = await generateContentDraft(
+      validated.topic,
+      validated.category,
+      validated.platform,
+      validated.instructions
+    );
 
     await AIRequest.create({
       userId,
       operationType: 'generateContent',
-      prompt: `${topic} (${category} - ${platform})`,
+      prompt: `${validated.topic} (${validated.category} - ${validated.platform})`,
       result: result.draft,
       isSuspicious: result.isSuspicious,
       suspiciousReason: result.suspiciousReason || '',
@@ -95,7 +96,7 @@ export async function handleGenerateContent(req: AuthRequest, res: Response, nex
     if (userId) {
       emitToUser(userId.toString(), 'ai_notification', {
         title: 'Content Generated',
-        message: `Your AI draft for "${topic}" is ready!`,
+        message: `Your AI draft for "${validated.topic}" is ready!`,
         type: 'success'
       });
     }
@@ -324,6 +325,7 @@ export async function handleStreamContent(req: AuthRequest, res: Response, next:
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
 
     const result = await generateContentStream(prompt, (chunk) => {
       res.write(`data: ${JSON.stringify({ chunk })}\n\n`);

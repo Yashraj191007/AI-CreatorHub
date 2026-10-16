@@ -14,3 +14,6 @@ coverage/
 .claude/
 .windsurf/
 skills-lock.json
+
+# Viva notes
+Viva*.txt
