@@ -36,7 +36,15 @@ export async function protect(req: AuthRequest, res: Response, next: NextFunctio
 
     req.user = user;
     next();
-  } catch (error) {
+  } catch (error: any) {
+    if (error.name === 'TokenExpiredError') {
+      res.status(401).json({ success: false, error: 'Not authorized, token has expired' });
+      return;
+    }
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({ success: false, error: 'Not authorized, invalid token signature or malformed token' });
+      return;
+    }
     res.status(401).json({ success: false, error: 'Not authorized, invalid or expired token' });
   }
 }

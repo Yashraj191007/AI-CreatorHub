@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getPlans, getBillingHistory, subscribeToPlan } from '../services/billingService.js';
 import { IUser } from '../models/User.js';
 import { AuthRequest } from '../middleware/authMiddleware.js';
+import { subscribeSchema } from '../validators/billingValidator.js';
 
 export const getAvailablePlans = async (req: Request, res: Response) => {
   try {
@@ -32,14 +33,13 @@ export const subscribe = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ error: 'Not authorized' });
     }
     
-    const { planId } = req.body;
-    if (!planId) {
-      return res.status(400).json({ error: 'planId is required' });
-    }
-
-    const result = await subscribeToPlan(user._id.toString(), user.email, planId);
+    const validated = subscribeSchema.parse(req.body);
+    const result = await subscribeToPlan(user._id.toString(), user.email, validated.planId);
     res.status(201).json(result);
   } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: 'planId is required' });
+    }
     res.status(400).json({ error: error.message || 'Subscription failed' });
   }
 };

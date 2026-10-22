@@ -26,6 +26,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
       email: validated.email,
       password: validated.password,
       role: 'USER',
+      authProvider: 'local',
     });
 
     const token = generateToken(user._id.toString());
@@ -60,6 +61,14 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
     if (user.status === 'disabled') {
       res.status(403).json({ success: false, error: 'Your account has been disabled by an admin.' });
+      return;
+    }
+
+    if (!user.password) {
+      res.status(401).json({
+        success: false,
+        error: `This account was registered using ${user.authProvider || 'Google'} OAuth. Please sign in with ${user.authProvider || 'Google'}.`,
+      });
       return;
     }
 

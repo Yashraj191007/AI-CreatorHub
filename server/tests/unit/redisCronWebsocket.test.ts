@@ -15,10 +15,15 @@ vi.mock('../../config/redis', () => ({
     isOpen: true,
     get: vi.fn(),
     setEx: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    eval: vi.fn(),
     on: vi.fn(),
     connect: vi.fn(),
   },
   connectRedis: vi.fn(),
+  sanitizeRedisError: (err: any) => (err instanceof Error ? err.message : String(err)),
+  sanitizeRedisUrl: (url: string) => url,
 }));
 
 vi.mock('../../config/prisma', () => ({
@@ -56,6 +61,8 @@ vi.mock('socket.io', () => {
 describe('Batch 2: Redis, Cron, and WebSocket', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (redisClient as any).isOpen = true;
+    (redisClient.set as any).mockResolvedValue('OK');
   });
 
   describe('Redis Caching', () => {
@@ -121,6 +128,91 @@ describe('Batch 2: Redis, Cron, and WebSocket', () => {
       expect(callArgs).toHaveProperty('createdAt');
       expect(callArgs.createdAt).toHaveProperty('$lt');
       expect(callArgs.createdAt.$lt).toBeInstanceOf(Date);
+    });
+
+    it('should not register the cleanup job when ENABLE_CRON is false', () => {
+      (cron.schedule as any).mockClear();
+      process.env.ENABLE_CRON = 'false';
+      const result = initCleanupJob();
+
+      expect(result).toBeNull();
+      expect(cron.schedule).not.toHaveBeenCalled();
+      delete process.env.ENABLE_CRON;
+    });
+
+    it('should disable cron by default in production when ENABLE_CRON is not true', () => {
+      (cron.schedule as any).mockClear();
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      delete process.env.ENABLE_CRON;
+
+      const result = initCleanupJob();
+      expect(result).toBeNull();
+      expect(cron.schedule).not.toHaveBeenCalled();
+
+      process.env.NODE_ENV = origEnv;
+    });
+
+    it('should enable cron in production when ENABLE_CRON is explicitly true', () => {
+      (cron.schedule as any).mockClear();
+      const origEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
+      process.env.ENABLE_CRON = 'true';
+
+      const result = initCleanupJob();
+      expect(result).not.toBeNull();
+      expect(cron.schedule).toHaveBeenCalledWith('0 0 * * *', expect.any(Function), expect.any(Object));
+
+      process.env.NODE_ENV = origEnv;
+      delete process.env.ENABLE_CRON;
+    });
+
+    it('should skip cleanup execution if Redis distributed lock cannot be acquired', async () => {
+      (cron.schedule as any).mockClear();
+      (AIRequest.deleteMany as any).mockClear();
+
+      // Mock redis client as open and failing to acquire lock (another instance holds lock)
+      (redisClient as any).isOpen = true;
+      (redisClient.set as any).mockResolvedValue(null);
+
+      initCleanupJob();
+      const cronCallback = (cron.schedule as any).mock.calls[0][1];
+      await cronCallback();
+
+      // Assert deleteMany was NOT called because lock was not acquired
+      expect(AIRequest.deleteMany).not.toHaveBeenCalled();
+
+      (redisClient as any).isOpen = false;
+    });
+
+    it('should acquire lock with TTL and safely release it via atomic Lua script after execution', async () => {
+      (cron.schedule as any).mockClear();
+      (AIRequest.deleteMany as any).mockClear();
+      (redisClient.set as any).mockClear();
+      (redisClient.eval as any).mockClear();
+
+      (redisClient as any).isOpen = true;
+      (redisClient.set as any).mockResolvedValue('OK');
+      (redisClient.eval as any).mockResolvedValue(1);
+      (AIRequest.deleteMany as any).mockResolvedValue({ deletedCount: 10 });
+
+      initCleanupJob();
+      const cronCallback = (cron.schedule as any).mock.calls[0][1];
+      await cronCallback();
+
+      expect(redisClient.set).toHaveBeenCalledWith(
+        'cron:lock:ai_cleanup',
+        expect.any(String),
+        expect.objectContaining({ NX: true, EX: 3600 })
+      );
+      expect(AIRequest.deleteMany).toHaveBeenCalled();
+      expect(redisClient.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+        expect.objectContaining({
+          keys: ['cron:lock:ai_cleanup'],
+          arguments: [expect.any(String)],
+        })
+      );
     });
   });
 
