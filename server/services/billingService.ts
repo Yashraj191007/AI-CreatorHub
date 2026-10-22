@@ -1,5 +1,5 @@
 import prisma from '../config/prisma.js';
-import { redisClient } from '../config/redis.js';
+import { redisClient, sanitizeRedisError } from '../config/redis.js';
 
 export const getPlans = async () => {
   const CACHE_KEY = 'billing:plans';
@@ -12,7 +12,7 @@ export const getPlans = async () => {
         return JSON.parse(cached as string);
       }
     } catch (err) {
-      console.error('Redis cache hit error:', err);
+      console.error('Redis cache hit error:', sanitizeRedisError(err));
       // Gracefully fallback to Prisma on Redis error
     }
   }
@@ -29,7 +29,7 @@ export const getPlans = async () => {
     try {
       await redisClient.setEx(CACHE_KEY, 3600, JSON.stringify(plans)); // 1 hour TTL
     } catch (err) {
-      console.error('Redis cache set error:', err);
+      console.error('Redis cache set error:', sanitizeRedisError(err));
     }
   }
   

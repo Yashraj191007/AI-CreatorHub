@@ -27,9 +27,77 @@ app.use(
   })
 );
 
+/**
+ * Resolves the explicit set of allowed frontend origins from configuration.
+ * Reads APP_URL and CORS_ALLOWED_ORIGINS environment variables.
+ * In non-production environments, includes standard local development origins.
+ * Strictly validates origins and discards malformed entries to prevent accidental trust.
+ */
+export function getAllowedOrigins(): string[] {
+  const origins = new Set<string>();
+
+  const addOrigin = (rawUrl?: string) => {
+    if (!rawUrl) return;
+    const entries = rawUrl.split(',');
+    for (const entry of entries) {
+      const trimmed = entry.trim();
+      if (!trimmed || trimmed === '*' || trimmed.toLowerCase() === 'null') continue;
+      try {
+        const urlToParse = /^https?:\/\//i.test(trimmed)
+          ? trimmed
+          : `https://${trimmed}`;
+        const parsed = new URL(urlToParse);
+        const protocol = parsed.protocol.toLowerCase();
+        const hostname = parsed.hostname.toLowerCase();
+        const origin = parsed.origin.toLowerCase();
+
+        // Must use HTTP/HTTPS and have a valid, non-null hostname
+        if ((protocol === 'http:' || protocol === 'https:') && hostname && origin !== 'null') {
+          // Must be a valid domain with a dot, localhost, or valid loopback IP
+          if (hostname.includes('.') || hostname === 'localhost' || hostname === '127.0.0.1') {
+            origins.add(origin);
+          }
+        }
+      } catch {
+        // Discard malformed entries; do not add invalid strings to allowed origins
+      }
+    }
+  };
+
+  addOrigin(process.env.APP_URL);
+  addOrigin(process.env.CORS_ALLOWED_ORIGINS);
+
+  // In non-production environments (development, test), include common local dev origins
+  if (process.env.NODE_ENV !== 'production') {
+    origins.add('http://localhost:3000');
+    origins.add('http://localhost:5000');
+    origins.add('http://localhost:5173');
+    origins.add('http://127.0.0.1:3000');
+    origins.add('http://127.0.0.1:5000');
+    origins.add('http://127.0.0.1:5173');
+  }
+
+  return Array.from(origins);
+}
+
 app.use(
   cors({
-    origin: true,
+    origin: (origin, callback) => {
+      // Allow requests with no Origin header (e.g. server-to-server, curl, health checks)
+      if (!origin) {
+        return callback(null, false);
+      }
+
+      const allowed = getAllowedOrigins();
+      const normalizedOrigin = origin.trim().replace(/\/+$/, '').toLowerCase();
+
+      if (allowed.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      // Reject untrusted origins without reflecting them in Access-Control-Allow-Origin
+      return callback(null, false);
+    },
     credentials: true,
   })
 );
@@ -83,7 +151,14 @@ app.get('/api/health/readiness', async (_req, res) => {
   }
 
   const isRedisConnected = Boolean(redisClient.isOpen);
-  const isReady = isMongoConnected && isPostgresConnected;
+  const allowedOrigins = getAllowedOrigins();
+  const isCorsConfigured = process.env.NODE_ENV !== 'production' || allowedOrigins.length > 0;
+
+  // In production, Redis and configured CORS allowed origins are strictly required
+  const isReady =
+    process.env.NODE_ENV === 'production'
+      ? isMongoConnected && isPostgresConnected && isRedisConnected && isCorsConfigured
+      : isMongoConnected && isPostgresConnected;
 
   res.status(isReady ? 200 : 503).json({
     status: isReady ? 'ready' : 'unhealthy',
@@ -91,6 +166,7 @@ app.get('/api/health/readiness', async (_req, res) => {
       mongodb: isMongoConnected ? 'connected' : 'disconnected',
       postgresql: isPostgresConnected ? 'connected' : 'disconnected',
       redis: isRedisConnected ? 'connected' : 'disconnected',
+      cors: isCorsConfigured ? 'configured' : 'missing_allowed_origins',
     },
     timestamp: new Date().toISOString(),
   });

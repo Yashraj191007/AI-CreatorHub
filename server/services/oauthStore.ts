@@ -1,4 +1,4 @@
-import { redisClient } from '../config/redis.js';
+import { redisClient, sanitizeRedisError } from '../config/redis.js';
 
 interface ExchangeRecord {
   payload: {
@@ -26,7 +26,7 @@ export async function storeExchangeCode(
       await redisClient.setEx(`oauth:exchange:${code}`, ttlSeconds, JSON.stringify(payload));
       return;
     } catch (err) {
-      console.error('Redis error while storing exchange code:', err);
+      console.error('Redis error while storing exchange code:', sanitizeRedisError(err));
       if (process.env.NODE_ENV === 'production') {
         throw new Error(
           'Redis shared store error during OAuth code storage. Production requires a functional Redis connection.'
@@ -81,7 +81,7 @@ export async function consumeExchangeCode(
       }
       return JSON.parse(result as string);
     } catch (err) {
-      console.error('Redis error while consuming exchange code:', err);
+      console.error('Redis error while consuming exchange code:', sanitizeRedisError(err));
       if (process.env.NODE_ENV === 'production') {
         throw new Error(
           'Redis shared store error during OAuth code consumption. Production requires a functional Redis connection.'
@@ -131,7 +131,7 @@ export async function markStateNonceConsumed(
       });
       return res === 'OK';
     } catch (err) {
-      console.error('Redis error while consuming state nonce:', err);
+      console.error('Redis error while consuming state nonce:', sanitizeRedisError(err));
       if (process.env.NODE_ENV === 'production') {
         return false; // Fail closed: reject state consumption if shared store fails
       }

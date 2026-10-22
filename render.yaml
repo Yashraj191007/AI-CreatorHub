@@ -19,6 +19,8 @@ services:
       # Note: PORT is automatically injected by Render's runtime.
       - key: APP_URL
         sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
       - key: MONGODB_URI
         sync: false
       - key: DATABASE_URL

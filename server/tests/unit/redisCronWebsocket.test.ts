@@ -16,10 +16,14 @@ vi.mock('../../config/redis', () => ({
     get: vi.fn(),
     setEx: vi.fn(),
     set: vi.fn(),
+    del: vi.fn(),
+    eval: vi.fn(),
     on: vi.fn(),
     connect: vi.fn(),
   },
   connectRedis: vi.fn(),
+  sanitizeRedisError: (err: any) => (err instanceof Error ? err.message : String(err)),
+  sanitizeRedisUrl: (url: string) => url,
 }));
 
 vi.mock('../../config/prisma', () => ({
@@ -179,6 +183,36 @@ describe('Batch 2: Redis, Cron, and WebSocket', () => {
       expect(AIRequest.deleteMany).not.toHaveBeenCalled();
 
       (redisClient as any).isOpen = false;
+    });
+
+    it('should acquire lock with TTL and safely release it via atomic Lua script after execution', async () => {
+      (cron.schedule as any).mockClear();
+      (AIRequest.deleteMany as any).mockClear();
+      (redisClient.set as any).mockClear();
+      (redisClient.eval as any).mockClear();
+
+      (redisClient as any).isOpen = true;
+      (redisClient.set as any).mockResolvedValue('OK');
+      (redisClient.eval as any).mockResolvedValue(1);
+      (AIRequest.deleteMany as any).mockResolvedValue({ deletedCount: 10 });
+
+      initCleanupJob();
+      const cronCallback = (cron.schedule as any).mock.calls[0][1];
+      await cronCallback();
+
+      expect(redisClient.set).toHaveBeenCalledWith(
+        'cron:lock:ai_cleanup',
+        expect.any(String),
+        expect.objectContaining({ NX: true, EX: 3600 })
+      );
+      expect(AIRequest.deleteMany).toHaveBeenCalled();
+      expect(redisClient.eval).toHaveBeenCalledWith(
+        expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+        expect.objectContaining({
+          keys: ['cron:lock:ai_cleanup'],
+          arguments: [expect.any(String)],
+        })
+      );
     });
   });
 

@@ -10,7 +10,7 @@ import { initCleanupJob } from './server/jobs/cleanupJob.js';
 import { initWebSocket } from './server/services/websocketService.js';
 import http from 'http';
 
-async function startServer() {
+export async function startServer(): Promise<http.Server> {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
   // Connect Database & Seed Initial Data
@@ -51,11 +51,20 @@ async function startServer() {
   // Initialize WebSocket server
   initWebSocket(server);
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`AI CreatorHub server running on http://0.0.0.0:${PORT}`);
+  return new Promise<http.Server>((resolve, reject) => {
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`AI CreatorHub server running on http://0.0.0.0:${PORT}`);
+      resolve(server);
+    });
+    server.on('error', reject);
   });
 }
 
-startServer().catch((err) => {
+export function handleStartupError(err: unknown): void {
   console.error('Failed to start server:', err);
-});
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  startServer().catch(handleStartupError);
+}

@@ -4,9 +4,9 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+.env
+.env.*
 !.env.example
-
 /src/generated/prisma
 
 # IDE and Agent Files
